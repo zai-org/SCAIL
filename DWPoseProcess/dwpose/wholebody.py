@@ -1,0 +1,69 @@
+# https://github.com/IDEA-Research/DWPose
+from pathlib import Path
+
+import cv2
+import numpy as np
+import onnxruntime as ort
+import time
+from .onnxdet import inference_detector, inference_detector_batch
+from .onnxpose import inference_pose, inference_pose_batch
+
+ModelDataPathPrefix = Path("./pretrained_weights")
+
+
+class Wholebody:
+    def __init__(self, device, use_batch=False):
+        providers = [("CUDAExecutionProvider", {
+            "device_id": device
+        })]
+        # providers = [("CPUExecutionProvider", {})]
+        onnx_det = '/workspace/yanwenhao/YOLOX/yolox_l.onnx'
+        onnx_pose = ModelDataPathPrefix.joinpath("DWPose/dw-ll_ucoco_384.onnx")
+
+        self.session_det = ort.InferenceSession(
+            path_or_bytes=onnx_det, providers=providers
+        )
+        self.session_pose = ort.InferenceSession(
+            path_or_bytes=onnx_pose, providers=providers
+        )
+        self.use_batch = use_batch
+
+    def _get_result_from_det_pose(self, det_result, keypoints, scores):
+        keypoints_info = np.concatenate((keypoints, scores[..., None]), axis=-1)    # (1, 133, 3)
+        # compute neck joint
+        neck = np.mean(keypoints_info[:, [5, 6]], axis=1)   # (1, 3)，对第五第六个点做平均
+        # neck score when visualizing pred
+        neck[:, 2:4] = np.logical_and(
+            keypoints_info[:, 5, 2:4] > 0.3, keypoints_info[:, 6, 2:4] > 0.3
+        ).astype(int)   # 从第二个开始切片，这里维度为3，只切一片
+        new_keypoints_info = np.insert(keypoints_info, 17, neck, axis=1)    # 在17索引处插入neck
+        # 调换骨骼索引
+        mmpose_idx = [17, 6, 8, 10, 7, 9, 12, 14, 16, 13, 15, 2, 1, 4, 3]
+        openpose_idx = [1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17]     # openpose需要检测17点+1脖子关键点
+        new_keypoints_info[:, openpose_idx] = new_keypoints_info[:, mmpose_idx]
+        keypoints_info = new_keypoints_info
+
+        keypoints, scores = keypoints_info[..., :2], keypoints_info[..., 2]
+
+        return keypoints, scores, det_result
+
+
+    def __call__(self, oriImg):
+        if not self.use_batch:
+            det_result = inference_detector(self.session_det, oriImg)
+            keypoints, scores = inference_pose(self.session_pose, det_result, oriImg)   # keypoints: (n_bbox, 133, 2) scores: (n_bbox, 133)  不管输入是什么初步提取的关键点数量都是一致的
+            return self._get_result_from_det_pose(det_result=det_result, keypoints=keypoints, scores=scores)
+            
+        else:
+            # start_time = time.time()
+            det_result_batch = inference_detector_batch(self.session_det, oriImg)   # list of ndarray batch_num * [num_box, 4]
+            # det_infer_time = time.time()
+            keypoints_batch, scores_batch = inference_pose_batch(self.session_pose, det_result_batch, oriImg)  # list of ndarray [keypoints: batch_num * (n_bbox, 133, 2) scores: (n_bbox, 133)]
+            # pose_infer_time = time.time()
+            # print(f"Det time taken: {(det_infer_time - start_time):.4f} seconds")
+            # print(f"Pose time taken: {(pose_infer_time - det_infer_time):.4f} seconds")
+
+            # breakpoint()
+            # 这个没法改并行，意义也不大
+            return [self._get_result_from_det_pose(det_result=det_result, keypoints=keypoints, scores=scores) for det_result, keypoints, scores in zip(det_result_batch, keypoints_batch, scores_batch)]
+

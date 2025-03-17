@@ -1,0 +1,14 @@
+video_roots:
+  - "/workspace/yanwenhao/DataProcess/VAL_UBC_Fashion/videos"
+
+infer_batch_size: 1
+videos_per_worker: 4
+num_workers_per_proc: 1
+remove_last: True
+single_gpu_test: True
+
+filter_args:
+  beta: 0.3
+  consistant_thresthold: 0.3
+  use_filter: False
+

@@ -1,0 +1,21 @@
+# 处理进度见
+
+
+video_roots:
+  - "/workspace/yanwenhao/DataProcess/hd_movie_video_data"
+  - "/workspace/yanwenhao/DataProcess/jilupian_dongman_videos/0"
+  - "/workspace/yanwenhao/DataProcess/pexels_hengping"
+  - "/workspace/yanwenhao/DataProcess/pexels1k"
+  - "/workspace/yanwenhao/DataProcess/supplier"
+
+
+infer_batch_size: 4     # batch_size
+videos_per_worker: 8    # 多少个一组
+num_workers_per_proc: 20  # 并发数量 >20无明显收益
+remove_last: True
+single_gpu_test: False
+
+filter_args:
+  beta: 0.3             # beta 控制分数变化系数的影响权重
+  consistant_thresthold: 0.3
+  use_filter: True
