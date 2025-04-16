@@ -7,24 +7,20 @@ import numpy as np
 import time
 from dwpose import DWposeDetector
 from DWPoseProcess.AAUtils import get_fps, read_frames, save_videos_from_pil
-from DWPoseProcess.checkUtils import check_frame, check_frames_list
 from collections import deque
 import shutil
 import torch
 import yaml
-
-# Extract dwpose mp4 videos from raw videos
-# /path/to/video_dataset/*/*.mp4 -> /path/to/video_dataset_dwpose/*/*.mp4
+from draw_pose import draw_pose_to_canvas
 
 
-
-def process_single_video(video_path, detector, relative_path, save_dir, infer_batch_size, filter_args):
-    beta=filter_args['beta']
-    consistant_thresthold=filter_args['consistant_thresthold']
+def process_single_video(video_path, detector, relative_path, save_dir_keypoints, save_dir_bboxes, save_dir_refined, infer_batch_size, filter_args):
     use_filter=filter_args['use_filter']
-
-    out_path = os.path.join(save_dir, relative_path)
-    if os.path.exists(out_path):
+    save_mp4_refine=filter_args['save_mp4_refine']
+    out_path_keypoint = os.path.join(save_dir_keypoints, relative_path)
+    out_path_bbox = os.path.join(save_dir_bboxes, relative_path)
+    out_path_refined = os.path.join(save_dir_refined, relative_path)
+    if os.path.exists(out_path_keypoint) and os.path.exists(out_path_bbox):
         return
 
     # output_dir = Path(os.path.dirname(os.path.join(save_dir, relative_path)))
@@ -33,32 +29,22 @@ def process_single_video(video_path, detector, relative_path, save_dir, infer_ba
 
     fps = get_fps(video_path)
     frames = read_frames(video_path)
+    W, H = frames[0].size
+
     if fps is None or frames is None:
         return
     else:
         print(f"Processing: {video_path} fps: {int(fps)}")
 
 
-    # 对于每个视频的检测而言，以下参数是与推理形式无关的，用于检测帧之间的关系
-    # last_det_result: 上一帧结果，用于检测连续性
-    # skeleton_init_sequence: 骨骼初始8帧的检测窗口（大小为3
-    # skeleton_window_sequence: 过程中骨骼检测窗口
-    # last_mean_score 上一帧得分
-
-    last_det_result = np.zeros(4)
-    skeleton_init_sequence = deque(maxlen=3)
-    skeleton_window_sequence = deque(maxlen=4)
-    last_mean_score = [0]
-
     detector_return_list = []
+
+    if use_filter:
+        raise NotImplementedError("filter is not implemented")
 
     if infer_batch_size == 1:
         for i, frame_pil in enumerate(frames):
             detector_result = detector(frame_pil)
-            if use_filter:
-                check_result = check_frame(i, last_det_result, skeleton_init_sequence, skeleton_window_sequence, last_mean_score, video_path, detector_result, beta, consistant_thresthold)
-                if not check_result:
-                    return
             detector_return_list.append(detector_result)
     else:
         # 分割frames为chunks，每个chunk包含batch_size帧
@@ -66,10 +52,6 @@ def process_single_video(video_path, detector, relative_path, save_dir, infer_ba
             try:
                 frame_chunk = frames[i:i + infer_batch_size]
                 detector_result = detector(frame_chunk)
-                if use_filter:
-                    check_result = check_frames_list(i, infer_batch_size, last_det_result, skeleton_init_sequence, skeleton_window_sequence, last_mean_score, video_path, detector_result, beta, consistant_thresthold)
-                    if not check_result:
-                        return
                 detector_return_list.extend(detector_result)  # 调用detector写入结果
             except Exception as e:
                 print(f"[ERROR] 视频 `{video_path}` 处理失败，跳过！错误信息：{e}")
@@ -78,18 +60,23 @@ def process_single_video(video_path, detector, relative_path, save_dir, infer_ba
     results, poses, scores, det_results = zip(*detector_return_list)
     # 存raw poses
     assert len(poses) == len(frames), "frames must match"
-    torch.save(poses, out_path.replace(".mp4", ".pt"))
-    # 直接存mp4
-    save_videos_from_pil(results, out_path, fps=fps)
+    if save_mp4_refine:    # refine模式
+        refined_results = draw_pose_to_canvas(poses, pool=None, H=H, W=W, reshape_flag=False, points_only_flag=False)
+        save_videos_from_pil(refined_results, out_path_refined, fps=16) # 会自动makedirs
+    else:
+        torch.save(poses, out_path_keypoint.replace(".mp4", ".pt"))
+        torch.save(det_results, out_path_bbox.replace(".mp4", ".pt"))
 
     
 def process_batch_videos(video_list, detector, infer_batch_size, filter_args):
     for i, video_path in enumerate(video_list):
         video_root = os.path.dirname(video_path)
         relative_path = os.path.relpath(video_path, video_root)
-        save_dir = video_root + "_dwpose"
+        save_dir_keypoints = video_root + "_keypoints"
+        save_dir_bboxes = video_root + "_bboxes"
+        save_dir_refined = video_root + "_refined_dwpose"
         print(f"Process {i}/{len(video_list)} video")
-        process_single_video(video_path, detector, relative_path, save_dir, infer_batch_size=infer_batch_size, filter_args=filter_args)
+        process_single_video(video_path, detector, relative_path, save_dir_keypoints, save_dir_bboxes, save_dir_refined, infer_batch_size=infer_batch_size, filter_args=filter_args)
 
 
 # 对每个gpu串行执行，执行一定次数后重启detector，防止内存泄漏
@@ -111,7 +98,7 @@ def process_per_proc(mp4_path_chunks, gpu_id, num_workers_per_proc, filter_args)
             )
         for future in concurrent.futures.as_completed(futures):
             future.result()
-    # del detector
+    del detector
 
 def process_per_gpu(mp4_path_chunks_list, gpu_id, num_workers_per_proc, filter_args):
     for mp4_path_chunks in mp4_path_chunks_list:
@@ -157,12 +144,23 @@ if __name__ == "__main__":
     video_mp4_paths = set()
 
     for video_root in video_roots:
-        save_dir = video_root + "_dwpose"
-        if flag_remove_last:
-            if os.path.exists(save_dir):
-                shutil.rmtree(save_dir)
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+        if filter_args['save_mp4_refine']:
+            save_dir_refined = video_root + "_refined_dwpose"
+            if not os.path.exists(save_dir_refined):
+                os.makedirs(save_dir_refined)
+
+        else:
+            save_dir_keypoints = video_root + "_keypoints"
+            save_dir_bboxes = video_root + "_bboxes"
+            if flag_remove_last:
+                if os.path.exists(save_dir_keypoints):
+                    shutil.rmtree(save_dir_keypoints)
+                if os.path.exists(save_dir_bboxes):
+                    shutil.rmtree(save_dir_bboxes)
+            if not os.path.exists(save_dir_keypoints):
+                os.makedirs(save_dir_keypoints)
+            if not os.path.exists(save_dir_bboxes):
+                os.makedirs(save_dir_bboxes)
 
         for root, dirs, files in os.walk(video_root):
             for name in files:
@@ -185,8 +183,13 @@ if __name__ == "__main__":
     gpu_chunks_list = [video_chunks[i::len(gpu_ids)] for i in range(len(gpu_ids))]
     processes = []
 
+
+    # 单卡debug
+    if single_gpu_test:
+        process_per_gpu(gpu_chunks_list[0], 0, num_workers_per_proc, filter_args)
+        
     # 每张卡一个进程
-    if not single_gpu_test:
+    else:
         for i, gpu_id in enumerate(gpu_ids):
             p = multiprocessing.Process(
                 target=process_per_gpu,
@@ -200,10 +203,6 @@ if __name__ == "__main__":
             p.join()
         # process_per_proc(video_chunks[0], gpu_id, num_workers_per_proc)
         print("All Done")
-    
-    # 单卡debug
-    else:
-        process_per_gpu(gpu_chunks_list[0], 0, num_workers_per_proc, filter_args)
 
 
 

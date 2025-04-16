@@ -1,0 +1,14 @@
+directories: 
+  - "/workspace/ys_data/test/videos"    # 重新绘制，分辨率一致，加上新筛选逻辑
+  # - "/workspace/ywh_data/DataProcess/pexels_hengping/videos"
+  # - "/workspace/ywh_data/DataProcess/biaobei_CN_JP_KR/videos"
+  # - "/workspace/ywh_data/DataProcess/hd_movie_video_data/videos"
+  # - "/workspace/ywh_data/DataProcess/supplier/videos"
+  # - "/workspace/ywh_data/DataProcess/bilibili_dance_shuping_0929/videos"
+  # - "/workspace/ywh_data/DataProcess/panda70m/videos"
+  # - "/workspace/ywh_data/DataProcess/bili_shuping_0929/videos"
+  # - "/workspace/ywh_data/DataProcess/pexels1k/videos"
+  
+remove_last_flag: False
+reshape_flag: False
+points_only_flag: False

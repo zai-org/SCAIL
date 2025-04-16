@@ -1,14 +1,17 @@
 import cv2
 import numpy as np
 from PIL import Image
-import utils as util
+import draw_utils as util
 import torch
-from DWPoseProcess.AAUtils import read_frames_and_fps_as_np, save_videos_from_pil
+from DWPoseProcess.AAUtils import read_frames_and_fps_as_np, save_videos_from_pil, resize_image
+from DWPoseProcess.checkUtils import *
 import random
 import shutil
 import argparse
 import yaml  # Add this import
 import os
+from tqdm import tqdm
+from multiprocessing import Pool, cpu_count
 
 
 def draw_pose_points_only(pose, H, W):
@@ -36,7 +39,10 @@ def draw_pose(pose, H, W):
 
     canvas = np.zeros(shape=(H, W, 3), dtype=np.uint8)
 
-    canvas = util.draw_bodypose(canvas, candidate, subset)
+    if len(subset[0]) <= 18:
+        canvas = util.draw_bodypose(canvas, candidate, subset)
+    else:
+        canvas = util.draw_bodypose_with_feet(canvas, candidate, subset)
 
     canvas = util.draw_handpose(canvas, hands)
 
@@ -189,7 +195,116 @@ class reshapePool:
                      1, 0, i, 1,
                      [], [i], [], []
                      )
+
+def draw_pose_to_canvas(poses, pool, H, W, reshape_flag, points_only_flag):
+    canvas_lst = []
+    for pose in poses:
+        if reshape_flag:
+            pool.apply_random_reshapes(pose)
+        if points_only_flag:
+            canvas = draw_pose_points_only(pose, H, W)
+        else:
+            canvas = draw_pose(pose, H, W)
+        canvas_img = Image.fromarray(canvas)
+        canvas_lst.append(canvas_img)
+    return canvas_lst
+
+def convert_3dpose_to_2dpose_body(body_keypoints):
+    """
+    将20点的3D坐标映射到18点的2D坐标。
+    :param poses: 输入的20点坐标列表，每个点为 [x, y, z]
+    :return: 映射得到的18点坐标列表，每个点为 [x, y]
+    """
+    # 映射关系：索引位置
+    mapping = {
+        0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 8: 8, 9: 9, 10: 10,
+        14: 11, 15: 12, 16: 13, 11: 18, 12: 19, 13: 20, 17: 21, 18: 22, 19: 23
+    }
     
+    # 初始化18点坐标列表，默认值为 [-1, -1]
+    result = [[-1, -1] for _ in range(24)]
+    
+    # 遍历映射关系，将对应的20点坐标映射到18点坐标
+    for src_idx, dst_idx in mapping.items():
+        if src_idx < len(body_keypoints):  # 确保索引不越界
+            result[dst_idx] = [body_keypoints[src_idx][1],body_keypoints[src_idx][0]]   # 提取 x, y 坐标
+    
+    return result
+
+def convert_3dpose_to_2dpose_hand(left_hand_keypoints, right_hand_keypoints, body_keypoints):
+    """
+    将20点的3D坐标映射到18点的2D坐标。
+    :param poses: 输入的20点坐标列表，每个点为 [x, y, z]
+    :return: 映射得到的18点坐标列表，每个点为 [x, y]
+    """
+    # 映射关系：索引位置
+    hand_mapping = {
+        0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 10,
+        10: 11, 11: 12, 12: 13, 13: 14, 14: 15, 15: 16, 16: 17, 17: 18,
+        18: 19, 19: 20
+    }
+
+    body_mapping_left = {3: 0}
+    body_mapping_right = {6: 0}
+    
+    # 初始化18点坐标列表，默认值为 [-1, -1]
+    left_result = [[-1, -1] for _ in range(21)]
+    right_result = [[-1, -1] for _ in range(21)]
+    
+    # 遍历映射关系，将对应的20点坐标映射到18点坐标
+    for src_idx, dst_idx in hand_mapping.items():
+        if src_idx < len(left_hand_keypoints):  # 确保索引不越界
+            left_result[dst_idx] = [left_hand_keypoints[src_idx][1], left_hand_keypoints[src_idx][0]]  # 提取 x, y 坐标
+            right_result[dst_idx] = [right_hand_keypoints[src_idx][1], right_hand_keypoints[src_idx][0]]
+    
+    for src_idx, dst_idx in body_mapping_left.items():
+        if src_idx < len(body_keypoints):
+            left_result[dst_idx] = [body_keypoints[src_idx][1], body_keypoints[src_idx][0]]
+    for src_idx, dst_idx in body_mapping_right.items():
+        if src_idx < len(body_keypoints):
+            right_result[dst_idx] = [body_keypoints[src_idx][1], body_keypoints[src_idx][0]]
+    
+    return [left_result, right_result]
+
+def convert_3dpose_to_2dpose_face(face_keypoints):
+    result = [[pt[1], pt[0]] for pt in face_keypoints]
+    return result
+
+
+
+def read_jsonl(jsonl_path):
+    import jsonlines
+    poses = []
+    with jsonlines.open(jsonl_path) as reader:
+        for obj in reader:
+            condidate = convert_3dpose_to_2dpose_body(obj["body"])
+            subset = [[ -1,  1.,  2.,  3.,  4.,  5.,  6.,  7.,  8.,  9., 10., 11., 12.,
+        13., -1, -1, -1, -1, 18, 19, 20, 21, 22, 23]]
+            faces = [convert_3dpose_to_2dpose_face(obj["face"])]
+            hands = convert_3dpose_to_2dpose_hand(obj["left_hand"],obj["right_hand"], obj["body"])
+            poses.append({"bodies":{"candidate": condidate, "subset": subset}, "faces": faces, "hands": hands})
+    return poses
+
+def process_video(mp4_path, reshape_flag, points_only_flag, wanted_fps=None, representation_dirname="videos_dwpose_filtered", keypoints_dir=None):
+    
+    frames, fps = read_frames_and_fps_as_np(mp4_path)
+    initial_frame = frames[0]
+    if "dwpose" in representation_dirname:
+        keypoint_path = mp4_path.replace("videos_filtered", "videos_keypoints_filtered").replace(".mp4", ".pt")
+        poses = torch.load(keypoint_path)
+    elif "3dpose" in representation_dirname:
+        # 取mp4_path的文件名
+        mp4_name = os.path.basename(mp4_path)
+        keypoint_path = os.path.join(keypoints_dir, mp4_name.replace(".mp4", ".jsonl"))
+        poses = read_jsonl(keypoint_path)
+    pool = reshapePool(alpha=0.6)
+    canvas_lst = draw_pose_to_canvas(poses, pool, initial_frame.shape[0], initial_frame.shape[1], reshape_flag, points_only_flag)
+    
+    # save dwpose
+    target_representation_path = mp4_path.replace("videos_filtered", representation_dirname)
+    os.makedirs(os.path.dirname(target_representation_path), exist_ok=True)
+    save_videos_from_pil(canvas_lst, target_representation_path, wanted_fps)
+
 
 def load_config(config_path):
     with open(config_path, 'r') as f:
@@ -204,43 +319,53 @@ if __name__ == "__main__":
     # Load configuration
     config = load_config(args.config)
 
-    directory = config.get("directory")
+    directories = config.get("directories")
     reshape_flag = config.get("reshape_flag", False)
     points_only_flag = config.get("points_only_flag", False)
+    remove_last_flag = config.get("remove_last_flag", False)
 
-    ori_dir = directory.replace("videos_dwpose","videos_dwpose_ori")
-    os.makedirs(ori_dir, exist_ok=True)
-    dwpose_paths = []
+    if reshape_flag and points_only_flag:
+        raise Exception("reshape_flag and points_only_flag cannot be both True")
+    elif reshape_flag:
+        representation_dirname = "videos_3dpose_reshaped_filtered"
+    elif points_only_flag:
+        representation_dirname = "videos_3dpose_points_filtered"
+    else:
+        representation_dirname = "videos_3dpose_filtered_test"  # TODO: 这里要改
 
-    for root, dirs, files in os.walk(directory):
+
+    mp4_paths = []
+    for directory in directories:
+        if remove_last_flag:
+            # 删除 directory 中所有文件
+            # filtered_representation_dir = directory.replace("videos_filtered", representation_dirname) # TODO: 这里要改
+            filtered_representation_dir = directory.replace("videos", representation_dirname) # TODO: 这里要改
+            if os.path.exists(filtered_representation_dir):
+                shutil.rmtree(filtered_representation_dir)
+            print("已清除上次产生的")
+
+        keypoint_files = []
+        keypoints_dir = directory.replace("videos", "keypoints")
+        for root, dirs, files in os.walk(keypoints_dir):
             for file in files:
-                if file.lower().endswith('.mp4'):  # 只查找 .mp4 文件
-                    full_path = os.path.join(root, file)  # 获取绝对路径
-                    dwpose_paths .append(full_path)
+                if file.lower().endswith('.pt'):  # 只查找 .mp4 文件
+                    keypoint_files.append(file.replace(".pt", ".mp4"))  # 获取绝对路径
+                elif file.lower().endswith('.jsonl'):
+                    keypoint_files.append(file.replace(".jsonl", ".mp4"))
 
-    for dwpose_path in dwpose_paths:
-        poses = torch.load(dwpose_path.replace(".mp4", ".pt"))
-        pool = reshapePool(alpha=0.6)
-        frames, fps = read_frames_and_fps_as_np(dwpose_path)
-        H, W, C = frames[0].shape
-        canvas_lst = []
-        for pose in poses:
-            if reshape_flag:
-                pool.apply_random_reshapes(pose)
-            if points_only_flag:
-                canvas = draw_pose_points_only(pose, H, W)
-            else:
-                canvas = draw_pose(pose, H, W)
-            canvas_img = Image.fromarray(canvas)
-            canvas_lst.append(canvas_img)
-        if reshape_flag and points_only_flag:
-            raise Exception("reshape_flag and points_only_flag cannot be both True")
-        elif reshape_flag:
-            save_videos_from_pil(canvas_lst, dwpose_path.replace("videos_dwpose", "videos_dwpose_reshape"), fps)
-        elif points_only_flag:
-            save_videos_from_pil(canvas_lst, dwpose_path.replace("videos_dwpose", "videos_points"), fps)
-        else:
-            save_videos_from_pil(canvas_lst, dwpose_path.replace("videos_dwpose", "videos_dwpose_ori"), fps)
+        print(f"Processing directory: {directory}")
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if file in keypoint_files and file.lower().endswith('.mp4'):  # 只查找 .mp4 文件
+                    full_path = os.path.join(root, file)  # 获取绝对路径
+                    mp4_paths.append(full_path)
+    
+    # 串行
+        for mp4_path in tqdm(mp4_paths, desc="Processing videos", unit="video"):
+            process_video(mp4_path, reshape_flag, points_only_flag, wanted_fps=16, representation_dirname=representation_dirname, keypoints_dir=keypoints_dir)
+    # 并行
+    # with Pool(64) as p:
+    #     p.starmap(process_video, [(mp4_path, reshape_flag, points_only_flag, original_resolution_flag, 16, True, representation_dirname) for mp4_path in mp4_paths])
 
 
     

@@ -1,1 +1,1 @@
-python draw_pose.py --config config_hd_movie.yaml 
+python draw_pose.py --config config_draw.yaml 

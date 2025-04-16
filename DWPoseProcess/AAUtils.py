@@ -278,8 +278,6 @@ def save_videos_from_pil(pil_images, path, fps=8):
     else:
         raise ValueError("Unsupported file type. Use .mp4 or .gif.")
     
-    
-
 
 def load_video_with_pose_from_first_frame(video_data, pose_data, sampling="uniform", duration=None, num_frames=99, wanted_fps=None, actual_fps=None,
                skip_frms_num=4., nb_read_frames=None):
