@@ -11,8 +11,31 @@ from collections import deque
 import shutil
 import torch
 import yaml
-from draw_pose import draw_pose_to_canvas
+from pose_draw.draw_pose import draw_pose_to_canvas
 
+def calculate_video_mean_and_std_pil(frames):
+    variances = []
+    means = []
+    
+    for frame in frames:
+        # 将 PIL 图像转换为灰度图
+        gray_frame = frame.convert('L')
+        
+        # 转为 NumPy 数组
+        gray_array = np.array(gray_frame)
+        
+        # 计算每帧的均值和标准差
+        frame_mean = np.mean(gray_array)
+        frame_std = np.std(gray_array)
+        
+        means.append(frame_mean)
+        variances.append(frame_std)
+    
+    # 计算平均均值和平均标准差
+    average_mean = np.mean(means)
+    average_std = np.mean(variances)
+    
+    return average_std, average_mean
 
 def process_single_video(video_path, detector, relative_path, save_dir_keypoints, save_dir_bboxes, save_dir_refined, infer_batch_size, filter_args):
     use_filter=filter_args['use_filter']
@@ -40,7 +63,9 @@ def process_single_video(video_path, detector, relative_path, save_dir_keypoints
     detector_return_list = []
 
     if use_filter:
-        raise NotImplementedError("filter is not implemented")
+        mean, std = calculate_video_mean_and_std_pil(frames)
+        if mean < 30:
+            return
 
     if infer_batch_size == 1:
         for i, frame_pil in enumerate(frames):

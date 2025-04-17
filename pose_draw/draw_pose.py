@@ -3,6 +3,9 @@ import numpy as np
 from PIL import Image
 import draw_utils as util
 import torch
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from DWPoseProcess.AAUtils import read_frames_and_fps_as_np, save_videos_from_pil, resize_image
 from DWPoseProcess.checkUtils import *
 import random
@@ -44,7 +47,7 @@ def draw_pose(pose, H, W):
     else:
         canvas = util.draw_bodypose_with_feet(canvas, candidate, subset)
 
-    canvas = util.draw_handpose(canvas, hands)
+    canvas = util.draw_handpose_lr(canvas, hands)
 
     canvas = util.draw_facepose(canvas, faces)
     return canvas
@@ -301,7 +304,10 @@ def process_video(mp4_path, reshape_flag, points_only_flag, wanted_fps=None, rep
     canvas_lst = draw_pose_to_canvas(poses, pool, initial_frame.shape[0], initial_frame.shape[1], reshape_flag, points_only_flag)
     
     # save dwpose
-    target_representation_path = mp4_path.replace("videos_filtered", representation_dirname)
+    if "dwpose" in representation_dirname:
+        target_representation_path = mp4_path.replace("videos_filtered", representation_dirname)
+    elif "3dpose" in representation_dirname:
+        target_representation_path = mp4_path.replace("videos", representation_dirname)
     os.makedirs(os.path.dirname(target_representation_path), exist_ok=True)
     save_videos_from_pil(canvas_lst, target_representation_path, wanted_fps)
 

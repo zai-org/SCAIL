@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from PIL import Image
-import draw_utils as util
+import pose_draw.draw_utils as util
 import torch
 from DWPoseProcess.AAUtils import read_frames_and_fps_as_np, save_videos_from_pil, resize_image
 from DWPoseProcess.checkUtils import *

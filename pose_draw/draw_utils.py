@@ -310,6 +310,54 @@ def draw_bodypose_points_only(canvas, candidate, subset):
 
     return canvas
 
+def draw_handpose_lr(canvas, all_hand_peaks):
+    H, W, C = canvas.shape
+
+    # 连接顺序：21个关键点的骨架连线
+    edges = [
+        [0, 1], [1, 2], [2, 3], [3, 4],
+        [0, 5], [5, 6], [6, 7], [7, 8],
+        [0, 9], [9, 10], [10, 11], [11, 12],
+        [0, 13], [13, 14], [14, 15], [15, 16],
+        [0, 17], [17, 18], [18, 19], [19, 20],
+    ]
+
+
+    for left_or_right, peaks in enumerate(all_hand_peaks):
+        base_hue = 0 if left_or_right == 0 else 0.3
+        peaks = np.array(peaks)
+
+        for ie, e in enumerate(edges):
+            x1, y1 = peaks[e[0]]
+            x2, y2 = peaks[e[1]]
+            x1 = int(x1 * W)
+            y1 = int(y1 * H)
+            x2 = int(x2 * W)
+            y2 = int(y2 * H)
+            if x1 > eps and y1 > eps and x2 > eps and y2 > eps:
+                if left_or_right == 0:
+                    hsv_color = [ (base_hue + ie / float(len(edges)) * 0.8), 0.9, 0.9 ]
+                else:
+                    hsv_color = [ (base_hue + ie / float(len(edges)) * 0.8), 0.8, 1 ]
+                rgb_color = matplotlib.colors.hsv_to_rgb(hsv_color) * 255
+                cv2.line(
+                    canvas,
+                    (x1, y1),
+                    (x2, y2),
+                    rgb_color,
+                    thickness=2,
+                )
+
+        for i, keypoint in enumerate(peaks):
+            x, y = keypoint
+            x = int(x * W)
+            y = int(y * H)
+            if x > eps and y > eps:
+                # 关键点也用淡色标注（左手蓝、右手红）
+                point_color = (245, 100, 100) if left_or_right == 0 else (100, 100, 255)
+                cv2.circle(canvas, (x, y), 4, point_color, thickness=-1)
+
+    return canvas
 
 def draw_handpose(canvas, all_hand_peaks):
     H, W, C = canvas.shape

@@ -1,0 +1,27 @@
+# 处理进度见/workspace/ywh_data/DataProcess/ProcessDataViaAPI/process_config.yaml
+video_roots:
+  # - "/workspace/ywh_data/DataProcess/hd_movie_video_data/videos"
+  # - "/workspace/ywh_data/DataProcess/jilupian_dongman_videos/0/videos"
+  # - "/workspace/ywh_data/DataProcess/pexels_hengping/videos"
+  # - "/workspace/ywh_data/DataProcess/pexels1k/videos"
+  # - "/workspace/ywh_data/DataProcess/supplier/videos"
+  # - "/workspace/ywh_data/DataProcess/biaobei_CN_JP_KR/videos"
+  # - "/workspace/ywh_data/DataProcess/bilibili_dance_shuping_0929/videos"
+  # - "/workspace/ywh_data/DataProcess/bili_shuping_0812/videos"
+  - "/workspace/ywh_data/DataProcessNew/bilibili_dance_shuping_0929/videos_step1"
+  - "/workspace/ywh_data/DataProcessNew/bili_shuping_0929/videos_step1"
+  # - "/workspace/ywh_data/DataProcessNew/pexels1k/videos"
+  # - "/workspace/ywh_data/DataProcessNew/pexels_hengping/videos"
+
+
+infer_batch_size: 4     # batch_size
+videos_per_worker: 8    # 多少个一组
+num_workers_per_proc: 16  # 并发数量 >20无明显收益  # 对于pexels等数据集，里面会有一些视频特别长，调大了可能会爆
+remove_last: True
+single_gpu_test: False
+
+filter_args:
+  beta: 0.3             # beta 控制分数变化系数的影响权重
+  consistant_thresthold: 0.3
+  use_filter: True
+  save_mp4_refine: False
