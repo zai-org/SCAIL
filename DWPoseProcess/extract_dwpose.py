@@ -11,7 +11,7 @@ from collections import deque
 import shutil
 import torch
 import yaml
-from pose_draw.draw_pose import draw_pose_to_canvas
+from pose_draw.draw_pose_main import draw_pose_to_canvas
 
 def calculate_video_mean_and_std_pil(frames):
     variances = []

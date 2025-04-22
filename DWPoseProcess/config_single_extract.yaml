@@ -1,6 +1,6 @@
 # 处理进度见/workspace/ywh_data/DataProcess/ProcessDataViaAPI/process_config.yaml
 video_roots:
-  - "/workspace/ywh_data/DataProcess/VAL_UBC_Fashion/videos"
+  - "/workspace/ywh_data/DataProcessNew/pexels1k/videos_step1"
 
 infer_batch_size: 1
 videos_per_worker: 4

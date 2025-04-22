@@ -21,7 +21,5 @@ remove_last: True
 single_gpu_test: False
 
 filter_args:
-  beta: 0.3             # beta 控制分数变化系数的影响权重
-  consistant_thresthold: 0.3
   use_filter: True
   save_mp4_refine: False
