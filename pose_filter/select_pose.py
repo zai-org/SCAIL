@@ -12,7 +12,10 @@ import yaml  # Add this import
 import os
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
-    
+
+
+
+####### 这一部分逻辑针对多人也需要重写
 
 def process_video(mp4_path, wanted_fps=None):
     keypoint_path = mp4_path.replace("videos", "videos_keypoints")

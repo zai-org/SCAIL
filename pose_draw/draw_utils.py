@@ -107,12 +107,12 @@ def draw_bodypose_with_feet(canvas, candidate, subset):
 
     # 添加脚部连接线：10->18, 10->19, 10->20；13->21, 13->22, 13->23
     foot_limbSeq = [
-        [11, 19],
-        [11, 20],
-        [11, 21],
-        [14, 22],
-        [14, 23],
-        [14, 24],
+        [14, 19],
+        [14, 20],
+        [14, 21],
+        [11, 22],
+        [11, 23],
+        [11, 24],
     ]
 
     # 生成颜色（原始18条颜色 + 6条新颜色）
@@ -138,8 +138,8 @@ def draw_bodypose_with_feet(canvas, candidate, subset):
     ]
 
     colors_feet = [
-        [0, 235, 150], [0, 215, 170], [0, 195, 190],
         [100, 0, 215], [80, 0, 235], [60, 0, 255],
+        [0, 235, 150], [0, 215, 170], [0, 195, 190],
     ]
 
     colors = colors + colors_feet
@@ -322,8 +322,9 @@ def draw_handpose_lr(canvas, all_hand_peaks):
         [0, 17], [17, 18], [18, 19], [19, 20],
     ]
 
-
-    for left_or_right, peaks in enumerate(all_hand_peaks):
+    all_num_hands = len(all_hand_peaks)
+    for peaks_idx, peaks in enumerate(all_hand_peaks):
+        left_or_right = not (peaks_idx >= all_num_hands / 2)
         base_hue = 0 if left_or_right == 0 else 0.3
         peaks = np.array(peaks)
 

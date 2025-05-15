@@ -1,0 +1,66 @@
+video_roots:
+  -  '/workspace/ywh_data/cross_pair_eval100/001'
+  -  '/workspace/ywh_data/cross_pair_eval100/002'
+  -  '/workspace/ywh_data/cross_pair_eval100/003'
+  -  '/workspace/ywh_data/cross_pair_eval100/004'
+  -  '/workspace/ywh_data/cross_pair_eval100/005'
+  -  '/workspace/ywh_data/cross_pair_eval100/006'
+  -  '/workspace/ywh_data/cross_pair_eval100/007'
+  -  '/workspace/ywh_data/cross_pair_eval100/008'
+  -  '/workspace/ywh_data/cross_pair_eval100/009'
+  -  '/workspace/ywh_data/cross_pair_eval100/010'
+  -  '/workspace/ywh_data/cross_pair_eval100/011'
+  -  '/workspace/ywh_data/cross_pair_eval100/012'
+  -  '/workspace/ywh_data/cross_pair_eval100/013'
+  -  '/workspace/ywh_data/cross_pair_eval100/014'
+  -  '/workspace/ywh_data/cross_pair_eval100/015'
+  -  '/workspace/ywh_data/cross_pair_eval100/016'
+  -  '/workspace/ywh_data/cross_pair_eval100/017'
+  -  '/workspace/ywh_data/cross_pair_eval100/018'
+  -  '/workspace/ywh_data/cross_pair_eval100/019'
+  -  '/workspace/ywh_data/cross_pair_eval100/020'
+  -  '/workspace/ywh_data/cross_pair_eval100/021'
+  -  '/workspace/ywh_data/cross_pair_eval100/022'
+  -  '/workspace/ywh_data/cross_pair_eval100/023'
+  -  '/workspace/ywh_data/cross_pair_eval100/024'
+  -  '/workspace/ywh_data/cross_pair_eval100/025'
+  -  '/workspace/ywh_data/cross_pair_eval100/026'
+  -  '/workspace/ywh_data/cross_pair_eval100/027'
+  -  '/workspace/ywh_data/cross_pair_eval100/028'
+  -  '/workspace/ywh_data/cross_pair_eval100/029'
+  -  '/workspace/ywh_data/cross_pair_eval100/030'
+  -  '/workspace/ywh_data/cross_pair_eval100/031'
+  -  '/workspace/ywh_data/cross_pair_eval100/032'
+  -  '/workspace/ywh_data/cross_pair_eval100/033'
+  -  '/workspace/ywh_data/cross_pair_eval100/034'
+  -  '/workspace/ywh_data/cross_pair_eval100/035'
+  -  '/workspace/ywh_data/cross_pair_eval100/036'
+  -  '/workspace/ywh_data/cross_pair_eval100/037'
+  -  '/workspace/ywh_data/cross_pair_eval100/038'
+  -  '/workspace/ywh_data/cross_pair_eval100/039'
+  -  '/workspace/ywh_data/cross_pair_eval100/040'
+  -  '/workspace/ywh_data/cross_pair_eval100/041'
+  -  '/workspace/ywh_data/cross_pair_eval100/042'
+  -  '/workspace/ywh_data/cross_pair_eval100/043'
+  -  '/workspace/ywh_data/cross_pair_eval100/044'
+  -  '/workspace/ywh_data/cross_pair_eval100/045'
+  -  '/workspace/ywh_data/cross_pair_eval100/046'
+  -  '/workspace/ywh_data/cross_pair_eval100/047'
+  -  '/workspace/ywh_data/cross_pair_eval100/048'
+  -  '/workspace/ywh_data/cross_pair_eval100/049'
+  -  '/workspace/ywh_data/cross_pair_eval100/050'
+  -  '/workspace/ywh_data/cross_pair_eval100/051'
+  -  '/workspace/ywh_data/cross_pair_eval100/052'
+  -  '/workspace/ywh_data/cross_pair_eval100/053'
+  -  '/workspace/ywh_data/cross_pair_eval100/054'
+  
+  
+infer_batch_size: 1
+videos_per_worker: 1
+num_workers_per_proc: 1
+remove_last: False
+single_gpu_test: True
+
+filter_args:
+  use_filter: False
+  save_mp4: False

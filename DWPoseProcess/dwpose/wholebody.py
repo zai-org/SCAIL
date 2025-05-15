@@ -64,6 +64,5 @@ class Wholebody:
             # print(f"Pose time taken: {(pose_infer_time - det_infer_time):.4f} seconds")
 
             # breakpoint()
-            # 这个没法改并行，意义也不大
             return [self._get_result_from_det_pose(det_result=det_result, keypoints=keypoints, scores=scores) for det_result, keypoints, scores in zip(det_result_batch, keypoints_batch, scores_batch)]
 

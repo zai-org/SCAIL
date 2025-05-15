@@ -1,6 +1,5 @@
 video_roots:
   -  '/workspace/ywh_data/DataProcess/biaobei_CN_JP_KR/videos_filtered'
-  -  '/workspace/ywh_data/DataProcess/bili_shuping_0812/videos_filtered'
   -  '/workspace/ywh_data/DataProcess/bili_shuping_0929/videos_filtered'
   -  '/workspace/ywh_data/DataProcess/bilibili_dance_shuping_0929/videos_filtered'
   -  '/workspace/ywh_data/DataProcess/hd_movie_video_data/videos_filtered'
@@ -8,17 +7,26 @@ video_roots:
   -  '/workspace/ywh_data/DataProcess/pexels_hengping/videos_filtered'
   -  '/workspace/ywh_data/DataProcess/pexels1k/videos_filtered'
   -  '/workspace/ywh_data/DataProcess/supplier/videos_filtered'
-  # 第三次 0318
 
 
 infer_batch_size: 4     # batch_size
 videos_per_worker: 8    # 多少个一组
-num_workers_per_proc: 10  # 并发数量 >20无明显收益, single gpu test时记得调成1
-remove_last: False
+num_workers_per_proc: 16  # 并发数量 >20无明显收益, single gpu test时记得调成1
+remove_last: True
 single_gpu_test: False
 
+# infer_batch_size: 4
+# videos_per_worker: 8
+# num_workers_per_proc: 1
+# remove_last: False
+# single_gpu_test: True
+
 filter_args:
-  beta: 0.3             # beta 控制分数变化系数的影响权重
-  consistant_thresthold: 0.3
   use_filter: False
-  save_mp4_refine: True
+  save_mp4: True
+  multi_person: False
+
+name_args:
+  keypoint_suffix_name: "_keypoints_new"
+  bbox_suffix_name: "_bboxes_new"
+  mp4_suffix_name: "_dwpose_new"

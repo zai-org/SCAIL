@@ -19,6 +19,7 @@ videos_per_worker: 6    # 多少个一组
 num_workers_per_proc: 12
 remove_last: True
 single_gpu_test: False
+input_num_of_videos: 400000
 
 filter_args:
   use_filter: True

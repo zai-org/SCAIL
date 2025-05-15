@@ -19,23 +19,6 @@ from . import util
 from .wholebody import Wholebody
 
 
-def draw_pose(pose, H, W):
-    bodies = pose["bodies"]
-    faces = pose["faces"]
-    hands = pose["hands"]
-    candidate = bodies["candidate"]
-    subset = bodies["subset"]
-    canvas = np.zeros(shape=(H, W, 3), dtype=np.uint8)
-
-    canvas = util.draw_bodypose(canvas, candidate, subset)
-
-    canvas = util.draw_handpose(canvas, hands)
-
-    canvas = util.draw_facepose(canvas, faces)
-
-    return canvas
-
-
 class DWposeDetector:
     def __init__(self, use_batch=False):
         self.use_batch = use_batch
@@ -45,20 +28,32 @@ class DWposeDetector:
         self.pose_estimation = Wholebody(device, self.use_batch)
         return self
 
-    # def cal_height(self, input_image):
-    #     input_image = cv2.cvtColor(
-    #         np.array(input_image, dtype=np.uint8), cv2.COLOR_RGB2BGR
-    #     )
+    def _get_multi_result_from_est(self, input_image, candidate, subset, det_result, image_resolution, output_type, H, W):
+        nums, keys, locs = candidate.shape  # n 所有身体关键点数量，坐标
+        candidate[..., 0] /= float(W)
+        candidate[..., 1] /= float(H)
+        score = subset[:, :24]              # 前18个是躯干骨骼  score(n, 18)
+        body_candidate = candidate[:, :24].copy()     # body(n, 24, 2)
+        body_score = copy.deepcopy(score)       # 已经去过max_ind
+        for i in range(len(score)):  # n 个
+            for j in range(len(score[i])):
+                if score[i][j] > 0.3:
+                    score[i][j] = j
+                else:
+                    score[i][j] = -1    # 躯干中去除掉不可见的骨骼
 
-    #     input_image = HWC3(input_image)
-    #     H, W, C = input_image.shape
-    #     with torch.no_grad():
-    #         candidate, subset = self.pose_estimation(input_image)
-    #         nums, keys, locs = candidate.shape
-    #         # candidate[..., 0] /= float(W)
-    #         # candidate[..., 1] /= float(H)
-    #         body = candidate
-    #     return body[0, ..., 1].min(), body[..., 1].max() - body[..., 1].min()
+        un_visible = subset < 0.3       
+        candidate[un_visible] = -1      # 全部关键点中去掉不可见骨骼
+
+        faces = candidate[:, 24:92]
+
+        hands = candidate[:, 92:113]    # hands(2*n, 21, 2)
+        hands = np.vstack([hands, candidate[:, 113:]])  # 
+
+        bodies = dict(candidate=body_candidate, subset=score)
+        pose = dict(bodies=bodies, hands=hands, faces=faces)
+
+        return pose, body_score, det_result     # body_score是原始的躯干骨骼分数
 
     def _get_result_from_est(self, input_image, candidate, subset, det_result, image_resolution, output_type, H, W):
         nums, keys, locs = candidate.shape
@@ -92,20 +87,7 @@ class DWposeDetector:
         bodies = dict(candidate=body, subset=score)
         pose = dict(bodies=bodies, hands=hands, faces=faces)
 
-        detected_map = draw_pose(pose, H, W)
-        detected_map = HWC3(detected_map)
-
-        img = resize_image(input_image, image_resolution)
-        H, W, C = img.shape
-
-        detected_map = cv2.resize(
-            detected_map, (W, H), interpolation=cv2.INTER_LINEAR
-        )
-
-        if output_type == "pil":
-            detected_map = Image.fromarray(detected_map)
-
-        return detected_map, pose, body_score, det_result     # body_score是原始的躯干骨骼分数
+        return pose, body_score, det_result     # body_score是原始的躯干骨骼分数
 
     def __call__(
         self,
@@ -128,7 +110,7 @@ class DWposeDetector:
 
             with torch.no_grad():
                 candidate, subset, det_result = self.pose_estimation(input)   # candidate (n, 134, 2) 候选点 / subset (n, 134) 得分
-                return self._get_result_from_est(input, candidate, subset, det_result, image_resolution, output_type, H, W)
+                return self._get_multi_result_from_est(input, candidate, subset, det_result, image_resolution, output_type, H, W)
         else:
             input_batch_images = input
             # breakpoint()
@@ -143,7 +125,7 @@ class DWposeDetector:
                 #     print(subset.shape)   # 这里subset里可能没检测到骨骼 subsets为空 导致是(0,134) 其实是取索引取到0了
                     
                 det_results = list(det_results)
-                return [self._get_result_from_est(input, candidate, subset, det_result, image_resolution, output_type, H, W) 
+                return [self._get_multi_result_from_est(input, candidate, subset, det_result, image_resolution, output_type, H, W) 
                         for input, candidate, subset, det_result in zip(batch_input, candidates, subsets, det_results)]
 
 
