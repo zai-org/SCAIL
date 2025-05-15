@@ -10,5 +10,10 @@ single_gpu_test: True
 
 filter_args:
   use_filter: False
-  save_mp4_refine: False
+  save_mp4: True
+  multi_person: False
 
+name_args:
+  keypoint_suffix_name: "_keypoints"
+  bbox_suffix_name: "_bboxes"
+  mp4_suffix_name: "_dwpose"
