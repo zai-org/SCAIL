@@ -1,2 +1,4 @@
 pretrained_weights/
 *.pyc
+vscode/
+hypothesis/
