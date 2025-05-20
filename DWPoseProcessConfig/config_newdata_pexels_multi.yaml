@@ -1,15 +1,5 @@
 # 处理进度见/workspace/ywh_data/DataProcess/ProcessDataViaAPI/process_config.yaml
 video_roots:
-  # - "/workspace/ywh_data/DataProcess/hd_movie_video_data/videos"
-  # - "/workspace/ywh_data/DataProcess/jilupian_dongman_videos/0/videos"
-  # - "/workspace/ywh_data/DataProcess/pexels_hengping/videos"
-  # - "/workspace/ywh_data/DataProcess/pexels1k/videos"
-  # - "/workspace/ywh_data/DataProcess/supplier/videos"
-  # - "/workspace/ywh_data/DataProcess/biaobei_CN_JP_KR/videos"
-  # - "/workspace/ywh_data/DataProcess/bilibili_dance_shuping_0929/videos"
-  # - "/workspace/ywh_data/DataProcess/bili_shuping_0812/videos"
-  # - "/workspace/ywh_data/DataProcessNew/bilibili_dance_shuping_0929/videos_step1"
-  # - "/workspace/ywh_data/DataProcessNew/bili_shuping_0929/videos_step1"
   - "/workspace/ywh_data/DataProcessNew/pexels1k/videos_multi_step1"
   - "/workspace/ywh_data/DataProcessNew/pexels_hengping/videos_multi_step1"
 
@@ -21,7 +11,7 @@ single_gpu_test: False  # 根据save_mp4决定要不要删视频
 
 filter_args:
   use_filter: True
-  save_mp4: True
+  save_mp4: False
   multi_person: True
 
 name_args:

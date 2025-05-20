@@ -1,7 +1,7 @@
 # 处理进度见/workspace/ywh_data/DataProcess/ProcessDataViaAPI/process_config.yaml
 video_roots:
-  - "/workspace/ywh_data/DataProcessNew/pexels1k/videos_step1"
-  - "/workspace/ywh_data/DataProcessNew/pexels_hengping/videos_step1"
+  - "/workspace/ywh_data/DataProcessNew/supplier/videos_multi_step1"
+  - "/workspace/ywh_data/DataProcessNew/supplier2/videos_multi_step1"
 
 
 videos_per_worker: 10    # 多少个一组
@@ -12,7 +12,7 @@ single_gpu_test: False  # 根据save_mp4决定要不要删视频
 filter_args:
   use_filter: True
   save_mp4: True
-  multi_person: False
+  multi_person: True
 
 name_args:
   keypoint_suffix_name: "_keypoints"
