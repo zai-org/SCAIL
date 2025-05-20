@@ -9,13 +9,11 @@ video_roots:
   -  '/workspace/ywh_data/DataProcess/supplier/videos_filtered'
 
 
-infer_batch_size: 4     # batch_size
 videos_per_worker: 8    # 多少个一组
 num_workers_per_proc: 16  # 并发数量 >20无明显收益, single gpu test时记得调成1
 remove_last: True
 single_gpu_test: False
 
-# infer_batch_size: 4
 # videos_per_worker: 8
 # num_workers_per_proc: 1
 # remove_last: False

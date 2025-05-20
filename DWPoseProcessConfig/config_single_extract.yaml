@@ -1,9 +1,8 @@
 video_roots:
-  - "./test_data/test_video_dir"
+  - "/workspace/ywh_data/DataProcessNew/pexels1k/videos_step1"
 
-infer_batch_size: 1
-videos_per_worker: 4
-num_workers_per_proc: 1
+videos_per_worker: 1
+num_workers_per_proc: 4
 remove_last: False
 single_gpu_test: True
 
@@ -13,6 +12,6 @@ filter_args:
   multi_person: False
 
 name_args:
-  keypoint_suffix_name: "_keypoints"
-  bbox_suffix_name: "_bboxes"
-  mp4_suffix_name: "_dwpose"
+  keypoint_suffix_name: "_keypoints_test"
+  bbox_suffix_name: "_bboxes_test"
+  mp4_suffix_name: "_dwpose_test"
