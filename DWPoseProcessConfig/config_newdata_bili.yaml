@@ -11,7 +11,7 @@ single_gpu_test: False  # 根据save_mp4决定要不要删视频
 
 filter_args:
   use_filter: True
-  save_mp4: True
+  save_mp4: False
   multi_person: False
 
 name_args:

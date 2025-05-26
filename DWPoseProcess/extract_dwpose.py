@@ -12,7 +12,7 @@ import shutil
 import torch
 import yaml
 from pose_draw.draw_pose_main import draw_pose_to_canvas
-from extractUtils import check_single_human_requirements, check_multi_human_requirements
+from extractUtils import check_single_human_requirements, check_multi_human_requirements, human_select
 
 def calculate_video_mean_and_std_pil(frames):
     variances = []
@@ -76,6 +76,7 @@ def process_single_video(video_path, detector, relative_path, save_dir_keypoints
         detector_return_list.append(detector_result)
 
     poses, scores, det_results = zip(*detector_return_list) # 这里存的是整个视频的poses
+    poses, det_results = human_select(poses, det_results, multi_person)
     # 存raw poses
     assert len(poses) == len(frames), "frames must match"
 

@@ -13,290 +13,247 @@ def warpAffine_kps(kps, M):
     kps = np.dot(kps, a.T) + t
     return kps
 
-def align_img(pose_ori, scales, video_ratio):   #     video_ratio = W / H
-    body_pose = copy.deepcopy(pose_ori['bodies']['candidate'])
-    hands = copy.deepcopy(pose_ori['hands'])
-    faces = copy.deepcopy(pose_ori['faces'])
+def align_img(pose_ori, align_args_list, video_ratio):   #     video_ratio = W / H
+    assert len(align_args_list) == len(pose_ori['bodies']['candidate']), f"num of bodies in align_args_list {len(align_args_list)} should be the same as the num of bodies in the following driving frames {len(pose_ori['bodies']['candidate'])}"
+    body_pose_multi = copy.deepcopy(pose_ori['bodies']['candidate'])
+    hands_multi = copy.deepcopy(pose_ori['hands'])
+    faces_multi = copy.deepcopy(pose_ori['faces'])
 
-    '''
-    计算逻辑:
-    0. 该函数内进行绝对变换，始终保持人体中心点 body_pose[1] 不变
-    1. 先把 ref 和 pose 的高 resize 到一样，且都保持原来的长宽比。
-    2. 用点在图中的实际坐标来计算。
-    3. 实际计算中，把h的坐标归一化到 [0, 1],  w为[0, W/H]
-    4. 由于 dwpose 的输出本来就是归一化的坐标，所以h不需要变，w要乘W/H
-    注意：dwpose 输出是 (w, h)
-    '''
+    for body_idx, scales in enumerate(align_args_list):
+        body_pose = body_pose_multi[body_idx]
+        left_hand = hands_multi[2*body_idx+1]
+        right_hand = hands_multi[2*body_idx]
+        face = faces_multi[body_idx]
 
-    # h不变，w缩放到原比例  
-    body_pose[:, 0]  = body_pose[:, 0] * video_ratio
-    hands[:, :, 0] = hands[:, :, 0] * video_ratio
-    faces[:, :, 0] = faces[:, :, 0] * video_ratio
+        '''
+        计算逻辑:
+        0. 该函数内进行绝对变换，始终保持人体中心点 body_pose[1] 不变
+        1. 先把 ref 和 pose 的高 resize 到一样，且都保持原来的长宽比。
+        2. 用点在图中的实际坐标来计算。
+        3. 实际计算中，把h的坐标归一化到 [0, 1],  w为[0, W/H]
+        4. 由于 dwpose 的输出本来就是归一化的坐标，所以h不需要变，w要乘W/H
+        注意：dwpose 输出是 (w, h)
+        '''
 
-    # scales of 10 body parts 
-    scale_neck      = scales["scale_neck"] 
-    scale_face      = scales["scale_face"]
-    scale_shoulder  = scales["scale_shoulder"]
-    scale_arm_upper = scales["scale_arm_upper"]
-    scale_arm_lower = scales["scale_arm_lower"]
-    scale_hand      = scales["scale_hand"]
-    scale_body_len  = scales["scale_body_len"]
-    scale_leg_upper = scales["scale_leg_upper"]
-    scale_leg_lower = scales["scale_leg_lower"]
-    scale_real_face = scales["scale_real_face"]
+        # h不变，w缩放到原比例  
+        body_pose[:, 0]  = body_pose[:, 0] * video_ratio
+        left_hand[:, 0] = left_hand[:, 0] * video_ratio
+        right_hand[:, 0] = right_hand[:, 0] * video_ratio
+        face[:, 0] = face[:, 0] * video_ratio
 
-    scale_sum = 0
-    count = 0
-    # TODO: 防止inf的逻辑
-    scale_list = [scale_neck, scale_face, scale_shoulder, scale_arm_upper, scale_arm_lower, scale_hand, scale_body_len, scale_leg_upper, scale_leg_lower]
-    for i in range(len(scale_list)):
-        if not np.isinf(scale_list[i]):
-            scale_sum = scale_sum + scale_list[i]
-            count = count + 1
-    for i in range(len(scale_list)):
-        if np.isinf(scale_list[i]):   
-            scale_list[i] = scale_sum/count
+        # scales of 10 body parts 
+        scale_neck      = scales["scale_neck"] 
+        scale_face      = scales["scale_face"]
+        scale_shoulder  = scales["scale_shoulder"]
+        scale_arm_upper = scales["scale_arm_upper"]
+        scale_arm_lower = scales["scale_arm_lower"]
+        scale_hand      = scales["scale_hand"]
+        scale_body_len  = scales["scale_body_len"]
+        scale_leg_upper = scales["scale_leg_upper"]
+        scale_leg_lower = scales["scale_leg_lower"]
+        scale_real_face = scales["scale_real_face"]
 
-    # offsets of each part 
-    offset = dict()
-    offset["14_15_16_17_to_0"] = body_pose[[14,15,16,17], :] - body_pose[[0], :] 
-    offset["3_to_2"] = body_pose[[3], :] - body_pose[[2], :] 
-    offset["4_to_3"] = body_pose[[4], :] - body_pose[[3], :] 
-    offset["6_to_5"] = body_pose[[6], :] - body_pose[[5], :] 
-    offset["7_to_6"] = body_pose[[7], :] - body_pose[[6], :] 
-    offset["9_to_8"] = body_pose[[9], :] - body_pose[[8], :] 
-    offset["10_to_9"] = body_pose[[10], :] - body_pose[[9], :] 
-    offset["12_to_11"] = body_pose[[12], :] - body_pose[[11], :] 
-    offset["13_to_12"] = body_pose[[13], :] - body_pose[[12], :] 
-    offset["hand_left_to_4"] = hands[1, :, :] - body_pose[[4], :]
-    offset["hand_right_to_7"] = hands[0, :, :] - body_pose[[7], :]
-    offset["nose_to_neck"] = faces[0][33] - body_pose[[0], :]
-    offset["faces_to_nose"] = faces[0] - faces[0][33]
+        scale_sum = 0
+        count = 0
+        # TODO: 防止inf的逻辑
+        scale_list = [scale_neck, scale_face, scale_shoulder, scale_arm_upper, scale_arm_lower, scale_hand, scale_body_len, scale_leg_upper, scale_leg_lower]
+        for i in range(len(scale_list)):
+            if not np.isinf(scale_list[i]):
+                scale_sum = scale_sum + scale_list[i]
+                count = count + 1
+        for i in range(len(scale_list)):
+            if np.isinf(scale_list[i]):   
+                scale_list[i] = scale_sum/count
 
-    # neck
-    c_ = body_pose[1]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_neck)
+        # offsets of each part 
+        offset = dict()
+        offset["14_15_16_17_to_0"] = body_pose[[14,15,16,17], :] - body_pose[[0], :] 
+        offset["3_to_2"] = body_pose[[3], :] - body_pose[[2], :] 
+        offset["4_to_3"] = body_pose[[4], :] - body_pose[[3], :] 
+        offset["6_to_5"] = body_pose[[6], :] - body_pose[[5], :] 
+        offset["7_to_6"] = body_pose[[7], :] - body_pose[[6], :] 
+        offset["9_to_8"] = body_pose[[9], :] - body_pose[[8], :] 
+        offset["10_to_9"] = body_pose[[10], :] - body_pose[[9], :] 
+        offset["12_to_11"] = body_pose[[12], :] - body_pose[[11], :] 
+        offset["13_to_12"] = body_pose[[13], :] - body_pose[[12], :] 
+        offset["hand_left_to_4"] = left_hand - body_pose[[4], :]
+        offset["hand_right_to_7"] = right_hand - body_pose[[7], :]
+        offset["nose_to_neck"] = face[33] - body_pose[[0], :]
+        offset["face_to_nose"] = face - face[33]
 
-    neck = body_pose[[0], :]    # 先得到一个正确位置的人中
-    neck = warpAffine_kps(neck, M)
-    body_pose[[0], :] = neck
-
-    # body_pose_up_shoulder 再以人中作为中心，得到正确位置的耳朵等上半身点
-    c_ = body_pose[0]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_face)
-
-    body_pose_up_shoulder = offset["14_15_16_17_to_0"] + body_pose[[0], :]
-    body_pose_up_shoulder = warpAffine_kps(body_pose_up_shoulder, M)
-    body_pose[[14,15,16,17], :] = body_pose_up_shoulder
-
-    # face（暂时实现版
-    # 先调整鼻尖
-    nose = offset["nose_to_neck"] + body_pose[[0], :]
-    nose = warpAffine_kps(nose, M)
-    faces[0][33] = nose
-
-    # 以鼻尖为中心，调整脸的其他点
-    if np.any(faces != -1):  # 检查是否有有效的面部关键点
-        c_ = faces[0][33]
+        # neck
+        c_ = body_pose[1]
         cx = c_[0]
         cy = c_[1]
-        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_real_face)
-        valid_face_points = faces[faces[:, :, 0] != -1]
-        if len(valid_face_points) > 0:
-            # 对整个faces数组应用缩放变换
-            faces_transformed = offset["faces_to_nose"] + nose
-            faces_transformed = warpAffine_kps(faces_transformed, M)
-            faces[0] = faces_transformed
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_neck)
+        neck = body_pose[[0], :]    # 先得到一个正确位置的人中
+        neck = warpAffine_kps(neck, M)
+        body_pose[[0], :] = neck
 
-    # shoulder 
-    c_ = body_pose[1]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_shoulder)
+        # up_shoulder
+        c_ = body_pose[0]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_face)
+        body_pose_up_shoulder = offset["14_15_16_17_to_0"] + body_pose[[0], :]
+        body_pose_up_shoulder = warpAffine_kps(body_pose_up_shoulder, M)
+        body_pose[[14,15,16,17], :] = body_pose_up_shoulder
 
-    body_pose_shoulder = body_pose[[2,5], :] 
-    body_pose_shoulder = warpAffine_kps(body_pose_shoulder, M) 
-    body_pose[[2,5], :] = body_pose_shoulder
+        # face
+        nose = offset["nose_to_neck"] + body_pose[[0], :]
+        nose = warpAffine_kps(nose, M)
+        face[33] = nose
+        if np.any(face != -1):  # 检查是否有有效的面部关键点
+            c_ = face[33]
+            cx = c_[0]
+            cy = c_[1]
+            M = cv2.getRotationMatrix2D((cx,cy), 0, scale_real_face)
+            if not np.all(face == -1):
+                face_transformed = offset["face_to_nose"] + nose
+                face_transformed = warpAffine_kps(face_transformed, M)
+                face[:] = face_transformed
 
-    # arm upper left
-    c_ = body_pose[2]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_arm_upper)
- 
-    elbow = offset["3_to_2"] + body_pose[[2], :]
-    elbow = warpAffine_kps(elbow, M)
-    body_pose[[3], :] = elbow
+        # shoulder 
+        c_ = body_pose[1]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_shoulder)
+        body_pose_shoulder = body_pose[[2,5], :] 
+        body_pose_shoulder = warpAffine_kps(body_pose_shoulder, M) 
+        body_pose[[2,5], :] = body_pose_shoulder
 
-    # arm lower left
-    c_ = body_pose[3]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_arm_lower)
- 
-    wrist = offset["4_to_3"] + body_pose[[3], :]
-    wrist = warpAffine_kps(wrist, M)
-    body_pose[[4], :] = wrist
+        # arm upper left
+        c_ = body_pose[2]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_arm_upper)
+        elbow = offset["3_to_2"] + body_pose[[2], :]
+        elbow = warpAffine_kps(elbow, M)
+        body_pose[[3], :] = elbow
 
-    # hand left
-    c_ = body_pose[4]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_hand)
- 
-    hand = offset["hand_left_to_4"] + body_pose[[4], :]
-    hand = warpAffine_kps(hand, M)
-    hands[1, :, :] = hand
+        # arm lower left
+        c_ = body_pose[3]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_arm_lower)
+        wrist = offset["4_to_3"] + body_pose[[3], :]
+        wrist = warpAffine_kps(wrist, M)
+        body_pose[[4], :] = wrist
 
-    # arm upper right
-    c_ = body_pose[5]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_arm_upper)
- 
-    elbow = offset["6_to_5"] + body_pose[[5], :]
-    elbow = warpAffine_kps(elbow, M)
-    body_pose[[6], :] = elbow
+        # hand left
+        c_ = body_pose[4]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_hand)
+        left_hand_transformed = offset["hand_left_to_4"] + body_pose[[4], :]
+        left_hand_transformed = warpAffine_kps(left_hand_transformed, M)
+        left_hand[:] = left_hand_transformed
 
-    # arm lower right
-    c_ = body_pose[6]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_arm_lower)
- 
-    wrist = offset["7_to_6"] + body_pose[[6], :]
-    wrist = warpAffine_kps(wrist, M)
-    body_pose[[7], :] = wrist
+        # arm upper right
+        c_ = body_pose[5]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_arm_upper)
+    
+        elbow = offset["6_to_5"] + body_pose[[5], :]
+        elbow = warpAffine_kps(elbow, M)
+        body_pose[[6], :] = elbow
 
-    # hand right
-    c_ = body_pose[7]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_hand)
- 
-    hand = offset["hand_right_to_7"] + body_pose[[7], :]
-    hand = warpAffine_kps(hand, M)
-    hands[0, :, :] = hand
+        # arm lower right
+        c_ = body_pose[6]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_arm_lower)
+    
+        wrist = offset["7_to_6"] + body_pose[[6], :]
+        wrist = warpAffine_kps(wrist, M)
+        body_pose[[7], :] = wrist
 
-    # body len
-    c_ = body_pose[1]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_body_len)
+        # hand right
+        c_ = body_pose[7]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_hand)
+        right_hand_transformed = offset["hand_right_to_7"] + body_pose[[7], :]
+        right_hand_transformed = warpAffine_kps(right_hand_transformed, M)
+        right_hand[:] = right_hand_transformed
 
-    body_len = body_pose[[8,11], :] 
-    body_len = warpAffine_kps(body_len, M)
-    body_pose[[8,11], :] = body_len
+        # body len
+        c_ = body_pose[1]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_body_len)
+        body_len = body_pose[[8,11], :] 
+        body_len = warpAffine_kps(body_len, M)
+        body_pose[[8,11], :] = body_len
 
-    # leg upper left
-    c_ = body_pose[8]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_leg_upper)
- 
-    knee = offset["9_to_8"] + body_pose[[8], :]
-    knee = warpAffine_kps(knee, M)
-    body_pose[[9], :] = knee
+        # leg upper left
+        c_ = body_pose[8]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_leg_upper)
+        knee = offset["9_to_8"] + body_pose[[8], :]
+        knee = warpAffine_kps(knee, M)
+        body_pose[[9], :] = knee
 
-    # leg lower left
-    c_ = body_pose[9]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_leg_lower)
- 
-    ankle = offset["10_to_9"] + body_pose[[9], :]
-    ankle = warpAffine_kps(ankle, M)
-    body_pose[[10], :] = ankle
+        # leg lower left
+        c_ = body_pose[9]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_leg_lower)
+        ankle = offset["10_to_9"] + body_pose[[9], :]
+        ankle = warpAffine_kps(ankle, M)
+        body_pose[[10], :] = ankle
 
-    # leg upper right
-    c_ = body_pose[11]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_leg_upper)
- 
-    knee = offset["12_to_11"] + body_pose[[11], :]
-    knee = warpAffine_kps(knee, M)
-    body_pose[[12], :] = knee
+        # leg upper right
+        c_ = body_pose[11]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_leg_upper)
+        knee = offset["12_to_11"] + body_pose[[11], :]
+        knee = warpAffine_kps(knee, M)
+        body_pose[[12], :] = knee
 
-    # leg lower right
-    c_ = body_pose[12]
-    cx = c_[0]
-    cy = c_[1]
-    M = cv2.getRotationMatrix2D((cx,cy), 0, scale_leg_lower)
- 
-    ankle = offset["13_to_12"] + body_pose[[12], :]
-    ankle = warpAffine_kps(ankle, M)
-    body_pose[[13], :] = ankle
+        # leg lower right
+        c_ = body_pose[12]
+        cx = c_[0]
+        cy = c_[1]
+        M = cv2.getRotationMatrix2D((cx,cy), 0, scale_leg_lower)
+        ankle = offset["13_to_12"] + body_pose[[12], :]
+        ankle = warpAffine_kps(ankle, M)
+        body_pose[[13], :] = ankle
 
-    # none part
-    body_pose_none = pose_ori['bodies']['candidate'] == -1.
-    hands_none = pose_ori['hands'] == -1.
-    faces_none = pose_ori['faces'] == -1.
+        # none part
+        body_pose_none = pose_ori['bodies']['candidate'][body_idx]
+        left_hand_none = pose_ori['hands'][2*body_idx+1]
+        right_hand_none = pose_ori['hands'][2*body_idx]
+        face_none = pose_ori['faces'][body_idx]
 
-    body_pose[body_pose_none] = -1.
-    hands[hands_none] = -1. 
-    nan = float('nan')
-    if len(hands[np.isnan(hands)]) > 0:
-        print('nan')
-    faces[faces_none] = -1.
+        body_pose_none = body_pose_none == -1.
+        left_hand_none = left_hand_none == -1.
+        right_hand_none = right_hand_none == -1.
+        face_none = face_none == -1.
+
+        body_pose[body_pose_none] = -1.
+        left_hand[left_hand_none] = -1. 
+        right_hand[right_hand_none] = -1. 
+        face[face_none] = -1.
 
     # last check nan -> -1.
-    body_pose = np.nan_to_num(body_pose, nan=-1.)
-    hands = np.nan_to_num(hands, nan=-1.)
-    faces = np.nan_to_num(faces, nan=-1.)
+    body_pose_multi = np.nan_to_num(body_pose_multi, nan=-1.)
+    hands_multi = np.nan_to_num(hands_multi, nan=-1.)
+    faces_multi = np.nan_to_num(faces_multi, nan=-1.)
 
     # return
     pose_align = copy.deepcopy(pose_ori)
-    pose_align['bodies']['candidate'] = body_pose
-    pose_align['hands'] = hands
-    pose_align['faces'] = faces
+    pose_align['bodies']['candidate'] = body_pose_multi
+    pose_align['hands'] = hands_multi
+    pose_align['faces'] = faces_multi
 
     return pose_align
 
-
-
-def run_align_video(vid_height, vid_width, ref_height, ref_width, pose_refer, pose_video):
-    # 需要先把 image 和 video 缩放到 H 一致
-    body_ref_img  = pose_refer['bodies']['candidate']
-    hands_ref_img = pose_refer['hands']
-    faces_ref_img = pose_refer['faces']
-    
-
-    pose_list= []
-
-    pose_1st_img =  copy.deepcopy(pose_video)[0]
-    body_1st_img  = pose_1st_img['bodies']['candidate']
-    hands_1st_img = pose_1st_img['hands']
-    faces_1st_img = pose_1st_img['faces']
-
-    '''
-    计算逻辑:
-    1. 先把 ref 和 pose 的高 resize 到一样，且都保持原来的长宽比。
-    2. 用点在图中的实际坐标来计算。
-    3. 实际计算中，把h的坐标归一化到 [0, 1],  w为[0, W/H]
-    4. 由于 dwpose 的输出本来就是归一化的坐标，所以h不需要变，w要乘W/H
-    注意：dwpose 输出是 (w, h)
-    '''
-    
-    # h不变，w缩放到原比例
-    # 在我们的例子里，还是要继续裁切的？可能有点问题？
-    ref_ratio = ref_width / ref_height
-    body_ref_img[:, 0]  = body_ref_img[:, 0] * ref_ratio
-    hands_ref_img[:, :, 0] = hands_ref_img[:, :, 0] * ref_ratio
-    faces_ref_img[:, :, 0] = faces_ref_img[:, :, 0] * ref_ratio
-
-    video_ratio = vid_width / vid_height
-    body_1st_img[:, 0]  = body_1st_img[:, 0] * video_ratio
-    hands_1st_img[:, :, 0] = hands_1st_img[:, :, 0] * video_ratio
-    faces_1st_img[:, :, 0] = faces_1st_img[:, :, 0] * video_ratio
-
-    # scale
+def get_align_args_and_offset(body_ref_img, body_1st_img, hands_ref_img, faces_ref_img, hands_1st_img, faces_1st_img):
     align_args = dict()
-    
     dist_1st_img = np.linalg.norm(body_1st_img[0]-body_1st_img[1])   # 0.078   
     dist_ref_img = np.linalg.norm(body_ref_img[0]-body_ref_img[1])   # 0.106
     align_args["scale_neck"] = dist_ref_img / dist_1st_img  # align / pose = ref / 1st
@@ -417,23 +374,79 @@ def run_align_video(vid_height, vid_width, ref_height, ref_width, pose_refer, po
 
     # centre offset (the offset of key point 1)
     offset = body_ref_img[1] - body_1st_img[1]
+    return align_args, offset
 
-    
+
+
+
+def run_align_video(vid_height, vid_width, ref_height, ref_width, pose_refer, pose_video):
+    # 需要先把 image 和 video 缩放到 H 一致
+    body_ref_img_multi  = pose_refer['bodies']['candidate']
+    hands_ref_img_multi = pose_refer['hands']
+    faces_ref_img_multi = pose_refer['faces']
+
+    pose_list= []
+
+    pose_1st_img_multi =  copy.deepcopy(pose_video)[0]
+    body_1st_img_multi = pose_1st_img_multi['bodies']['candidate']
+    hands_1st_img_multi = pose_1st_img_multi['hands']
+    faces_1st_img_multi = pose_1st_img_multi['faces']
+
+    align_args_list = [dict() for _ in range(len(body_ref_img_multi))]
+    offset_list = [[0, 0] for _ in range(len(body_ref_img_multi))]
+    assert len(body_ref_img_multi) == len(body_1st_img_multi), "person num in ref and driving video should be the same"
+
+    for body_idx in range(len(body_ref_img_multi)):
+        body_ref_img = body_ref_img_multi[body_idx]
+        body_1st_img = body_1st_img_multi[body_idx]
+        hands_ref_img = hands_ref_img_multi[2*body_idx: 2*body_idx+2]
+        faces_ref_img = faces_ref_img_multi[body_idx: body_idx+1]
+        hands_1st_img = hands_1st_img_multi[2*body_idx: 2*body_idx+2]
+        faces_1st_img = faces_1st_img_multi[body_idx: body_idx+1]
+
+        '''
+        计算逻辑:
+        1. 先把 ref 和 pose 的高 resize 到一样，且都保持原来的长宽比。
+        2. 用点在图中的实际坐标来计算。
+        3. 实际计算中，把h的坐标归一化到 [0, 1],  w为[0, W/H]
+        4. 由于 dwpose 的输出本来就是归一化的坐标，所以h不需要变，w要乘W/H
+        注意：dwpose 输出是 (w, h)
+        '''
+        
+        # h不变，w缩放到原比例
+        ref_ratio = ref_width / ref_height
+        body_ref_img[:, 0]  = body_ref_img[:, 0] * ref_ratio
+        hands_ref_img[:, :, 0] = hands_ref_img[:, :, 0] * ref_ratio
+        faces_ref_img[:, :, 0] = faces_ref_img[:, :, 0] * ref_ratio
+
+        video_ratio = vid_width / vid_height
+        body_1st_img[:, 0]  = body_1st_img[:, 0] * video_ratio
+        hands_1st_img[:, :, 0] = hands_1st_img[:, :, 0] * video_ratio
+        faces_1st_img[:, :, 0] = faces_1st_img[:, :, 0] * video_ratio
+
+        align_args, offset = get_align_args_and_offset(body_ref_img, body_1st_img, hands_ref_img, faces_ref_img, hands_1st_img, faces_1st_img)
+        align_args_list[body_idx] = align_args
+        offset_list[body_idx] = offset
+        
+        
+
     for i in range(len(pose_video)):
         # estimate scale parameters by the 1st frame in the video
         # pose align
         pose_ori = pose_video[i]
-        pose_align = align_img(pose_ori, align_args, video_ratio)
-        
-        # add centre offset
-        pose = pose_align
-        pose['bodies']['candidate'] = pose['bodies']['candidate'] + offset
-        pose['hands'] = pose['hands'] + offset
-        pose['faces'] = pose['faces'] + offset
+        pose_align = align_img(pose_ori, align_args_list, video_ratio)
 
+        # 这里也要改
+        # add centre offset
+        pose = copy.deepcopy(pose_align)
+        for body_idx in range(len(body_ref_img_multi)):
+            offset = offset_list[body_idx]
+            pose['bodies']['candidate'][body_idx] = pose['bodies']['candidate'][body_idx] + offset
+            pose['hands'][2*body_idx: 2*body_idx+2] = pose['hands'][2*body_idx: 2*body_idx+2] + offset
+            pose['faces'][body_idx] = pose['faces'][body_idx] + offset
 
         # h不变，w从绝对坐标缩放回0-1 注意这里要回到ref的坐标系
-        pose['bodies']['candidate'][:, 0] = pose['bodies']['candidate'][:, 0] / ref_ratio
+        pose['bodies']['candidate'][:, :, 0] = pose['bodies']['candidate'][:, :, 0] / ref_ratio
         pose['hands'][:, :, 0] = pose['hands'][:, :, 0] / ref_ratio
         pose['faces'][:, :, 0] = pose['faces'][:, :, 0] / ref_ratio
         pose_list.append(pose)

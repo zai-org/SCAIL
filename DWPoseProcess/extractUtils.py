@@ -23,7 +23,28 @@ def check_single_human_requirements(det_result):
             return False
         else:
             return True
+    
+def human_select(poses, det_results, multi_person):
+    new_poses = []
+    new_det_results = []
+    for pose, det_result in zip(poses, det_results):
+        if multi_person:
+            new_pose, new_det_result = get_multi_human(pose, det_result)
+        else:
+            new_pose, new_det_result = get_single_human(pose, det_result)
+        new_poses.append(new_pose)
+        new_det_results.append(new_det_result)
+    return new_poses, new_det_results
 
+
+def get_single_human(pose, det_result):
+    if len(det_result) <= 1:
+        return pose, det_result
+    else:
+        bbox_areas = [get_bbox_area(bbox) for bbox in det_result]
+        max_ind = max(range(len(bbox_areas)), key=lambda i: bbox_areas[i])
+        pose['bodies']['candidate'] = pose['bodies']['candidate'][max_ind:max_ind+1]
+        return pose, det_result[[max_ind]]
 
 def check_multi_human_requirements(det_result):
     # filter results
@@ -43,3 +64,7 @@ def check_multi_human_requirements(det_result):
             return True
         else:
             return False
+
+def get_multi_human(pose, det_result):
+    # 后续再筛比较好，后续从65帧里面筛的时候可以把背景里的人的筛掉
+    return pose, det_result

@@ -1,15 +1,15 @@
 video_roots:
-  - "/workspace/ywh_data/DataProcessNew/pexels1k/videos_step1"
+  - "/workspace/ywh_data/DataProcessNew/pexels1k/videos_multi_step1"
 
-videos_per_worker: 1
-num_workers_per_proc: 4
-remove_last: False
+videos_per_worker: 100
+num_workers_per_proc: 1
+remove_last: True
 single_gpu_test: True
 
 filter_args:
-  use_filter: False
+  use_filter: True
   save_mp4: True
-  multi_person: False
+  multi_person: True
 
 name_args:
   keypoint_suffix_name: "_keypoints_test"
