@@ -4,7 +4,11 @@ import numpy as np
 from collections import deque
 import math
 
-##############################锚框相关################################
+def get_bbox_area(bbox):
+    x1, y1, x2, y2 = bbox
+    return (x2 - x1) * (y2 - y1)
+
+
 def check_consistant(boxA, boxB, scoreA_lst, scoreB_lst, beta, all_threshold):
     """
     计算两个锚框之间的 IoU（交并比）以及分数的变化比例，来判断连续性
@@ -46,7 +50,7 @@ def get_IoU(boxA, boxB):
 
     return iou
 
-def check_bbox_ok_for_video(bbox, reference_width, reference_height):
+def check_bbox_single_for_video(bbox, reference_width, reference_height, center_check=True):
     """
     每一帧都要检查，判断 bbox 是否符合视频格式下的要求
     """
@@ -59,36 +63,27 @@ def check_bbox_ok_for_video(bbox, reference_width, reference_height):
         return False
 
     bbox_area = bbox_width * bbox_height
-    video_area = reference_width * reference_height
-    aspect_ok = bbox_height > bbox_width * 0.5
-    if not aspect_ok:
-        # print("filtered: bbox aspect not like human")
+
+    min_bbox_area = 1 / 40
+    max_bbox_area = 4 / 5
+    if bbox_area < min_bbox_area or bbox_area > max_bbox_area:
+        # print("filtered: bbox too small or too large")
         return False
 
+    # 横屏额外筛
     if reference_width > reference_height:
-        # 横屏
-        min_bbox_area = video_area * (1 / 40)
-        if bbox_area < min_bbox_area:
-            # print("filtered: bbox too small")
-            return False
-        max_bbox_width = reference_width * (2 / 3)
+        max_bbox_width = 2 / 3
         if bbox_width > max_bbox_width:
             # print("filtered: bbox too wide")
             return False
-        center_x = (x1 + x2) / 2
-        left_limit = reference_width * (1 / 5)
-        right_limit = reference_width * (4 / 5)
-        if not (left_limit <= center_x <= right_limit):
-            # print("filtered: bbox not in center")
-            return False
-
-    else:
-        # 竖屏
-        max_bbox_area = video_area * (4 / 5)
-        if bbox_area > max_bbox_area:
-            # print("filtered: bbox too large")
-            return False
-
+        if center_check:
+            center_x = (x1 + x2) / 2
+            left_limit = 1 / 5
+            right_limit = 4 / 5
+            if not (left_limit <= center_x <= right_limit):
+                # print("filtered: bbox not in center")
+                return False
+        
     return True
 
 
@@ -122,7 +117,7 @@ def part5_valid(valid_joints):
     
     
 def check_valid_sequence(valid_keypoints, threshold=0.3):
-    valid_joints = np.zeros(18)
+    valid_joints = np.zeros(24)
     for valid_keypoint in valid_keypoints:
         valid_joints += valid_keypoint
     return part5_valid(valid_joints)
@@ -168,7 +163,7 @@ def get_valid_indice_from_keypoints(ref_part_poses, ref_part_indices):
     
     return valid_indice
     
-def check_from_keypoints_core_keypoints(keypoints, bboxs, IoU_thresthold, reference_width, reference_height):
+def check_from_keypoints_core_keypoints(keypoints, bboxs):
     # 用于keypoints版本，根据每一帧的18个keypoints和bbox iou来判断是否满足要求
     valid_sequence = deque(maxlen=4)
     for i, (keypoint_all, bbox_all) in enumerate(zip(keypoints, bboxs)):
@@ -181,35 +176,53 @@ def check_from_keypoints_core_keypoints(keypoints, bboxs, IoU_thresthold, refere
         valid_sequence.append(valid_joints)
     return True
 
+def select_ref_from_keypoints_bbox_multi(ref_part_indices, ref_part_bboxes, bboxs):
+    for ref_index, ref_bbox in zip(ref_part_indices, ref_part_bboxes):
+        bbox_areas_ref = [get_bbox_area(bbox) for bbox in ref_bbox]
+        max_bbox_area_ref = max(bbox_areas_ref)
+        num_human_ref = sum(1 for bbox in ref_bbox if get_bbox_area(bbox) > max_bbox_area_ref * 0.5)
+        if num_human_ref < 2 or num_human_ref > 6:
+            continue
+        driving_bbox_ok = True
+        for i, bbox_all in enumerate(bboxs):
+            bbox_areas = [get_bbox_area(bbox) for bbox in bbox_all]
+            max_bbox_area = max(bbox_areas)
+            num_human = sum(1 for bbox in bbox_all if get_bbox_area(bbox) > max_bbox_area * 0.5)
+            if num_human != num_human_ref:
+                driving_bbox_ok = False
+                continue
+        if driving_bbox_ok:
+            return ref_index
+        else:
+            continue
+    return None
 
-def check_from_keypoints_bbox(keypoints, bboxs, IoU_thresthold, reference_width, reference_height):
+def check_from_keypoints_bbox(keypoints, bboxs, IoU_thresthold, reference_width, reference_height, multi_person=False):
     # 用于keypoints版本，根据每一帧的18个keypoints和bbox iou来判断是否满足要求
     last_bbox = None
     for i, (keypoint_all, bbox_all) in enumerate(zip(keypoints, bboxs)):
         if not len(bbox_all):
             return False
-        bbox = bbox_all[0]
-        if not check_bbox_ok_for_video(bbox, reference_width, reference_height):
-            return False   # bbox大小异常
-        if last_bbox is not None:
-            if not get_IoU(bbox, last_bbox) > IoU_thresthold:
-                return False   # IoU异常
-        last_bbox = bbox
+        else:
+            if multi_person:
+                for bbox in bbox_all:
+                    if not check_bbox_single_for_video(bbox, reference_width, reference_height, center_check=False):
+                        return False
+            else:
+                bbox = bbox_all[0]
+                if not check_bbox_single_for_video(bbox, reference_width, reference_height):
+                    return False   # bbox大小异常
+                if last_bbox is not None:
+                    if not get_IoU(bbox, last_bbox) > IoU_thresthold:
+                        return False   # IoU异常
+                last_bbox = bbox
     return True
 
 
 
-
-def check_from_keypoints_stick_movement(keypoints, bboxs, IoU_thresthold, reference_width, reference_height):
+def check_from_keypoints_stick_movement(keypoints, angle_threshold):
     # 骨骼选择：列表中每个元组表示由两个关节确定一条骨骼：格式 (joint_a, joint_b)
     bones = [(1, 0), (1, 2), (1, 5), (1, 8), (1, 11)]
-    
-    # 定义阈值
-    single_bone_threshold = math.radians(60)   # 60度对应的弧度
-    overall_movement_threshold = math.radians(5) # 5度对应的弧度
-
-    total_angle_diff = 0.0
-    count = 0
 
     max_delta_list = []
     # 遍历从第二帧开始，对比前一帧和当前帧
@@ -217,8 +230,8 @@ def check_from_keypoints_stick_movement(keypoints, bboxs, IoU_thresthold, refere
         # 获取上一帧和当前帧的关键点数据（格式为 (18,3) 数组）
         prev_frame_subset = keypoints[i-1]["bodies"]["subset"][0]
         curr_frame_subset = keypoints[i]["bodies"]["subset"][0]
-        prev_frame_keypoints = keypoints[i-1]["bodies"]["candidate"]
-        curr_frame_keypoints = keypoints[i]["bodies"]["candidate"]
+        prev_frame_keypoints = keypoints[i-1]["bodies"]["candidate"][0]
+        curr_frame_keypoints = keypoints[i]["bodies"]["candidate"][0]
 
         
         max_delta = 0
@@ -249,6 +262,8 @@ def check_from_keypoints_stick_movement(keypoints, bboxs, IoU_thresthold, refere
                 
             max_delta = max(delta, max_delta)
         max_delta_list.append(max_delta)
-
-    return max_delta_list
+        avg_movement = sum(max_delta_list) / len(max_delta_list)
+        if avg_movement > angle_threshold:
+            return True
+    return False
     

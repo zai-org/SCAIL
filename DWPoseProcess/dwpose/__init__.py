@@ -53,7 +53,17 @@ class DWposeDetector:
         bodies = dict(candidate=body_candidate, subset=score)
         pose = dict(bodies=bodies, hands=hands, faces=faces)
 
-        return pose, body_score, det_result     # body_score是原始的躯干骨骼分数
+        new_det_result = []
+        for bbox in det_result:
+            x1, y1, x2, y2 = bbox
+            new_x1 = x1 / W
+            new_y1 = y1 / H
+            new_x2 = x2 / W
+            new_y2 = y2 / H
+            new_bbox = [new_x1, new_y1, new_x2, new_y2]
+            new_det_result.append(new_bbox)
+
+        return pose, body_score, new_det_result     # body_score是原始的躯干骨骼分数
 
     def _get_result_from_est(self, input_image, candidate, subset, det_result, image_resolution, output_type, H, W):
         nums, keys, locs = candidate.shape
@@ -112,21 +122,22 @@ class DWposeDetector:
                 candidate, subset, det_result = self.pose_estimation(input)   # candidate (n, 134, 2) 候选点 / subset (n, 134) 得分
                 return self._get_multi_result_from_est(input, candidate, subset, det_result, image_resolution, output_type, H, W)
         else:
-            input_batch_images = input
-            # breakpoint()
-            batch_input = [resize_image(HWC3(cv2.cvtColor(np.array(img, dtype=np.uint8), cv2.COLOR_RGB2BGR)), detect_resolution) for img in input_batch_images]
-            H, W, C = batch_input[0].shape
-            with torch.no_grad():
-                candidates, subsets, det_results = zip(*self.pose_estimation(batch_input))   # candidate (n, 134, 2) 候选点 / subset (n, 134) 得分
-                candidates = list(candidates)
-                # print("subsets")
-                # subsets = list(subsets)
-                # for subset in subsets:
-                #     print(subset.shape)   # 这里subset里可能没检测到骨骼 subsets为空 导致是(0,134) 其实是取索引取到0了
+            raise NotImplementedError("DWposeDetector does not support batch mode")
+            # input_batch_images = input
+            # # breakpoint()
+            # batch_input = [resize_image(HWC3(cv2.cvtColor(np.array(img, dtype=np.uint8), cv2.COLOR_RGB2BGR)), detect_resolution) for img in input_batch_images]
+            # H, W, C = batch_input[0].shape
+            # with torch.no_grad():
+            #     candidates, subsets, det_results = zip(*self.pose_estimation(batch_input))   # candidate (n, 134, 2) 候选点 / subset (n, 134) 得分
+            #     candidates = list(candidates)
+            #     # print("subsets")
+            #     # subsets = list(subsets)
+            #     # for subset in subsets:
+            #     #     print(subset.shape)   # 这里subset里可能没检测到骨骼 subsets为空 导致是(0,134) 其实是取索引取到0了
                     
-                det_results = list(det_results)
-                return [self._get_multi_result_from_est(input, candidate, subset, det_result, image_resolution, output_type, H, W) 
-                        for input, candidate, subset, det_result in zip(batch_input, candidates, subsets, det_results)]
+            #     det_results = list(det_results)
+            #     return [self._get_multi_result_from_est(input, candidate, subset, det_result, image_resolution, output_type, H, W) 
+            #             for input, candidate, subset, det_result in zip(batch_input, candidates, subsets, det_results)]
 
 
 

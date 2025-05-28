@@ -1,4 +1,5 @@
 import numpy as np
+import copy
 
 def get_bbox_area(bbox):
     x1, y1, x2, y2 = bbox
@@ -43,8 +44,12 @@ def get_single_human(pose, det_result):
     else:
         bbox_areas = [get_bbox_area(bbox) for bbox in det_result]
         max_ind = max(range(len(bbox_areas)), key=lambda i: bbox_areas[i])
-        pose['bodies']['candidate'] = pose['bodies']['candidate'][max_ind:max_ind+1]
-        return pose, det_result[[max_ind]]
+        pose_copy = copy.deepcopy(pose)
+        pose_copy['bodies']['candidate'] = pose_copy['bodies']['candidate'][max_ind:max_ind+1]
+        pose_copy['bodies']['subset'] = pose_copy['bodies']['subset'][max_ind:max_ind+1]
+        pose_copy['hands'] = pose_copy['hands'][2*max_ind:2*max_ind+2]
+        pose_copy['faces'] = pose_copy['faces'][max_ind:max_ind+1]
+        return pose_copy, det_result[max_ind:max_ind+1]
 
 def check_multi_human_requirements(det_result):
     # filter results

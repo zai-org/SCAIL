@@ -1,0 +1,17 @@
+directories: 
+  - "/workspace/ywh_data/DataProcessNew/hd_movie_video_data/videos_multi_step1"    # 重新绘制，分辨率一致，加上新筛选逻辑
+  - "/workspace/ywh_data/DataProcessNew/jilupian_dongman_videos/videos_multi_step1"
+  - "/workspace/ywh_data/DataProcessNew/biaobei_CN_JP_KR/videos_multi_step1"
+  - "/workspace/ywh_data/DataProcessNew/panda70m/videos_multi_step1"
+
+  
+remove_last_flag: True
+multi_person: True
+keypoint_suffix_name: "_keypoints"
+bbox_suffix_name: "_bboxes"
+target_video_suffix_name: "_filtered"
+target_pose_video_suffix_name: "_filtered_dwpose"
+target_keypoint_suffix_name: "_filtered_keypoints"
+target_ref_image_suffix_name: "_ref_image"
+draw_pose: True
+

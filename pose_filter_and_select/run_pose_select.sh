@@ -1,1 +1,0 @@
-python select_pose.py --config config_select.yaml 

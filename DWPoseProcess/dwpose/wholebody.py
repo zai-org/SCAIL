@@ -55,14 +55,15 @@ class Wholebody:
             return self._get_result_from_det_pose(det_result=det_result, keypoints=keypoints, scores=scores)
             
         else:
-            # start_time = time.time()
-            det_result_batch = inference_detector_batch(self.session_det, oriImg)   # list of ndarray batch_num * [num_box, 4]
-            # det_infer_time = time.time()
-            keypoints_batch, scores_batch = inference_pose_batch(self.session_pose, det_result_batch, oriImg)  # list of ndarray [keypoints: batch_num * (n_bbox, 133, 2) scores: (n_bbox, 133)]
-            # pose_infer_time = time.time()
-            # print(f"Det time taken: {(det_infer_time - start_time):.4f} seconds")
-            # print(f"Pose time taken: {(pose_infer_time - det_infer_time):.4f} seconds")
+            raise NotImplementedError("DWposeDetector does not support batch mode")
+            # # start_time = time.time()
+            # det_result_batch = inference_detector_batch(self.session_det, oriImg)   # list of ndarray batch_num * [num_box, 4]
+            # # det_infer_time = time.time()
+            # keypoints_batch, scores_batch = inference_pose_batch(self.session_pose, det_result_batch, oriImg)  # list of ndarray [keypoints: batch_num * (n_bbox, 133, 2) scores: (n_bbox, 133)]
+            # # pose_infer_time = time.time()
+            # # print(f"Det time taken: {(det_infer_time - start_time):.4f} seconds")
+            # # print(f"Pose time taken: {(pose_infer_time - det_infer_time):.4f} seconds")
 
-            # breakpoint()
-            return [self._get_result_from_det_pose(det_result=det_result, keypoints=keypoints, scores=scores) for det_result, keypoints, scores in zip(det_result_batch, keypoints_batch, scores_batch)]
+            # # breakpoint()
+            # return [self._get_result_from_det_pose(det_result=det_result, keypoints=keypoints, scores=scores) for det_result, keypoints, scores in zip(det_result_batch, keypoints_batch, scores_batch)]
 
