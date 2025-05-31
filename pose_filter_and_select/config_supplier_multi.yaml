@@ -1,6 +1,6 @@
 directories: 
   - "/workspace/ywh_data/DataProcessNew/supplier/videos_multi_step1"
-  - "/workspace/ywh_data/DataProcessNew/supplier2/videos_multi_step1"
+  - "/workspace/ywh_data/DataProcessNew/dongman/videos_multi_step1"
   
 remove_last_flag: True
 multi_person: True

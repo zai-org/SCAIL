@@ -64,17 +64,24 @@ def process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_
         # 下面这四个筛选逻辑，除了bbox本身的，其他只对第0个bbox里的骨骼进行筛选
         motion_part_bbox_check_result = check_from_keypoints_bbox(motion_part_poses, motion_part_bboxes, IoU_thresthold=0.3, reference_width=W, reference_height=H, multi_person=multi_person)
         motion_part_core_check_result = check_from_keypoints_core_keypoints(motion_part_poses, motion_part_bboxes)
-        delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.015 if multi_person else 0.03)
         ref_part_check_indices = get_valid_indice_from_keypoints(ref_part_poses, ref_part_indices)
         
-        if len(ref_part_check_indices) > 0 and motion_part_bbox_check_result and motion_part_core_check_result and delta_check_result:    # 这里只要满足正脸条件就可以，其它都留着
+        if len(ref_part_check_indices) > 0 and motion_part_bbox_check_result and motion_part_core_check_result:    # 这里只要满足正脸条件就可以，其它都留着
             if multi_person:
                 final_ref_image_indice = select_ref_from_keypoints_bbox_multi(ref_part_indices, ref_part_bboxes, motion_part_bboxes)
                 if final_ref_image_indice is None:
                     start_index += random.randint(3, 4)
                     continue
+                delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.02)
+                if not delta_check_result:
+                    start_index += random.randint(3, 4)
+                    continue
             else:
                 final_ref_image_indice = random.choice(ref_part_check_indices)
+                delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.03)
+                if not delta_check_result:
+                    start_index += random.randint(3, 4)
+                    continue
             final_motion_indices = motion_part_indices
             break
         else:

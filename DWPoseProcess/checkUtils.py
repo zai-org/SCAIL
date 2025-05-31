@@ -181,7 +181,7 @@ def select_ref_from_keypoints_bbox_multi(ref_part_indices, ref_part_bboxes, bbox
         bbox_areas_ref = [get_bbox_area(bbox) for bbox in ref_bbox]
         max_bbox_area_ref = max(bbox_areas_ref)
         num_human_ref = sum(1 for bbox in ref_bbox if get_bbox_area(bbox) > max_bbox_area_ref * 0.5)
-        if num_human_ref < 2 or num_human_ref > 6:
+        if num_human_ref < 2 or num_human_ref > 5:
             continue
         driving_bbox_ok = True
         for i, bbox_all in enumerate(bboxs):
@@ -190,7 +190,7 @@ def select_ref_from_keypoints_bbox_multi(ref_part_indices, ref_part_bboxes, bbox
             num_human = sum(1 for bbox in bbox_all if get_bbox_area(bbox) > max_bbox_area * 0.5)
             if num_human != num_human_ref:
                 driving_bbox_ok = False
-                continue
+                break
         if driving_bbox_ok:
             return ref_index
         else:
@@ -226,44 +226,47 @@ def check_from_keypoints_stick_movement(keypoints, angle_threshold):
 
     max_delta_list = []
     # 遍历从第二帧开始，对比前一帧和当前帧
-    for i in range(1, len(keypoints)):
-        # 获取上一帧和当前帧的关键点数据（格式为 (18,3) 数组）
-        prev_frame_subset = keypoints[i-1]["bodies"]["subset"][0]
-        curr_frame_subset = keypoints[i]["bodies"]["subset"][0]
-        prev_frame_keypoints = keypoints[i-1]["bodies"]["candidate"][0]
-        curr_frame_keypoints = keypoints[i]["bodies"]["candidate"][0]
+    human_num_list = [len(keypoints[idx]["bodies"]["candidate"]) for idx in range(0, len(keypoints))]
+    min_human_num = min(human_num_list)
+    for human_idx in range(min_human_num):
+        for i in range(1, len(keypoints)):
+            # 获取上一帧和当前帧的关键点数据（格式为 (18,3) 数组）
+            prev_frame_subset = keypoints[i-1]["bodies"]["subset"][human_idx]
+            curr_frame_subset = keypoints[i]["bodies"]["subset"][human_idx]
+            prev_frame_keypoints = keypoints[i-1]["bodies"]["candidate"][human_idx]
+            curr_frame_keypoints = keypoints[i]["bodies"]["candidate"][human_idx]
 
-        
-        max_delta = 0
-        for (j1, j2) in bones:
-            # 检查上一帧中两个关节是否有效（假设 x, y 坐标需大于 0 才认为有效）
-            if prev_frame_subset[j1] < 0 or prev_frame_subset[j2] < 0:
-                continue
-            if curr_frame_subset[j1] < 0 or curr_frame_subset[j2] < 0:
-                continue
+            
+            max_delta = 0
+            for (j1, j2) in bones:
+                # 检查上一帧中两个关节是否有效（假设 x, y 坐标需大于 0 才认为有效）
+                if prev_frame_subset[j1] < 0 or prev_frame_subset[j2] < 0:
+                    continue
+                if curr_frame_subset[j1] < 0 or curr_frame_subset[j2] < 0:
+                    continue
 
-            # 计算上一帧和当前帧中对应骨骼的向量（方向一致，均从 j1 指向 j2）
-            vec_prev = np.array([prev_frame_keypoints[j2][0] - prev_frame_keypoints[j1][0],
-                                 prev_frame_keypoints[j2][1] - prev_frame_keypoints[j1][1]])
-            vec_curr = np.array([curr_frame_keypoints[j2][0] - curr_frame_keypoints[j1][0],
-                                 curr_frame_keypoints[j2][1] - curr_frame_keypoints[j1][1]])
-            
-            # 如果向量模长为0，则无法计算角度，跳过
-            if np.linalg.norm(vec_prev) == 0 or np.linalg.norm(vec_curr) == 0:
-                continue
-            # 计算向量对应的角度（弧度制）
-            angle_prev = math.atan2(vec_prev[1], vec_prev[0])
-            angle_curr = math.atan2(vec_curr[1], vec_curr[0])
-            
-            # 计算角度差，并规范到 [0, pi] 范围
-            delta = abs(angle_curr - angle_prev)
-            if delta > math.pi:
-                delta = 2 * math.pi - delta
+                # 计算上一帧和当前帧中对应骨骼的向量（方向一致，均从 j1 指向 j2）
+                vec_prev = np.array([prev_frame_keypoints[j2][0] - prev_frame_keypoints[j1][0],
+                                    prev_frame_keypoints[j2][1] - prev_frame_keypoints[j1][1]])
+                vec_curr = np.array([curr_frame_keypoints[j2][0] - curr_frame_keypoints[j1][0],
+                                    curr_frame_keypoints[j2][1] - curr_frame_keypoints[j1][1]])
                 
-            max_delta = max(delta, max_delta)
-        max_delta_list.append(max_delta)
-        avg_movement = sum(max_delta_list) / len(max_delta_list)
-        if avg_movement > angle_threshold:
-            return True
-    return False
+                # 如果向量模长为0，则无法计算角度，跳过
+                if np.linalg.norm(vec_prev) == 0 or np.linalg.norm(vec_curr) == 0:
+                    continue
+                # 计算向量对应的角度（弧度制）
+                angle_prev = math.atan2(vec_prev[1], vec_prev[0])
+                angle_curr = math.atan2(vec_curr[1], vec_curr[0])
+                
+                # 计算角度差，并规范到 [0, pi] 范围
+                delta = abs(angle_curr - angle_prev)
+                if delta > math.pi:
+                    delta = 2 * math.pi - delta
+                    
+                max_delta = max(delta, max_delta)
+            max_delta_list.append(max_delta)
+            avg_movement = sum(max_delta_list) / len(max_delta_list)
+            if avg_movement < angle_threshold:  # 筛去过小的动作
+                return False
+    return True
     

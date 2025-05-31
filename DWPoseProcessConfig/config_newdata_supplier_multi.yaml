@@ -1,7 +1,7 @@
 # 处理进度见/workspace/ywh_data/DataProcess/ProcessDataViaAPI/process_config.yaml
 video_roots:
   - "/workspace/ywh_data/DataProcessNew/supplier/videos_multi_step1"
-  - "/workspace/ywh_data/DataProcessNew/supplier2/videos_multi_step1"
+  - "/workspace/ywh_data/DataProcessNew/dongman/videos_multi_step1"
 
 
 videos_per_worker: 10    # 多少个一组

@@ -53,7 +53,7 @@ def get_single_human(pose, det_result):
 
 def check_multi_human_requirements(det_result):
     # filter results
-    if len(det_result) < 2 or len(det_result) > 6:  # 太多了也不好
+    if len(det_result) < 2 or len(det_result) > 5:  # 2-5个人
         return False
     else: # [3, 6]
         bbox_areas = [get_bbox_area(bbox) for bbox in det_result]
