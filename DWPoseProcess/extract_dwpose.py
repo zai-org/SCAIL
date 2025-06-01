@@ -91,6 +91,26 @@ def process_single_video(video_path, detector, relative_path, save_dir_keypoints
     torch.save(poses, out_path_keypoint.replace(".mp4", ".pt"))
     torch.save(det_results, out_path_bbox.replace(".mp4", ".pt"))
 
+def process_single_video_with_timeout(video_path, detector, relative_path, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, filter_args):
+    if "timeout_per_video" in filter_args:
+        timeout_seconds = filter_args["timeout_per_video"]
+    else:
+        timeout_seconds = 120
+
+    def task():
+        process_single_video(video_path, detector, relative_path,
+                             save_dir_keypoints, save_dir_bboxes, save_dir_mp4,
+                             filter_args)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(task)
+        try:
+            future.result(timeout=timeout_seconds)
+        except concurrent.futures.TimeoutError:
+            print(f"超时：处理视频 {video_path} 超过 {timeout_seconds} 秒，已跳过。")
+        except Exception as e:
+            print(f"处理视频 {video_path} 出错：{str(e)}")
+
 
 def process_batch_videos(video_list, detector, filter_args, name_args):
     for i, video_path in enumerate(video_list):
@@ -100,18 +120,17 @@ def process_batch_videos(video_list, detector, filter_args, name_args):
         save_dir_bboxes = video_root + name_args['bbox_suffix_name']
         save_dir_mp4 = video_root + name_args['mp4_suffix_name']
         print(f"Process {i}/{len(video_list)} video")
-        process_single_video(video_path, detector, relative_path, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, filter_args=filter_args)
+        process_single_video_with_timeout(video_path, detector, relative_path, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, filter_args=filter_args)
 
-
-# 对每个gpu串行执行，执行一定次数后重启detector，防止内存泄漏
-def process_per_proc(mp4_path_chunks, gpu_id, num_workers_per_proc, filter_args, name_args):
+# 对每张卡，对chunk里的视频串行
+def process_per_gpu(mp4_path_list, gpu_id, num_workers_per_proc, filter_args, name_args):
     detector = DWposeDetector(use_batch=False)
     detector = detector.to(gpu_id)
-    # split into worker chunks
-    perproc_batch_size = (len(mp4_path_chunks) + num_workers_per_proc - 1) // num_workers_per_proc
+    # 再把mp4_path_list分成video_chunks_per_proc，每块gpu多个进程
+    perproc_batch_size = (len(mp4_path_list) + num_workers_per_proc - 1) // num_workers_per_proc
     video_chunks_per_proc = [
-        mp4_path_chunks[i : i + perproc_batch_size]
-        for i in range(0, len(mp4_path_chunks), perproc_batch_size)
+        mp4_path_list[i : i + perproc_batch_size]
+        for i in range(0, len(mp4_path_list), perproc_batch_size)
     ]
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -122,11 +141,9 @@ def process_per_proc(mp4_path_chunks, gpu_id, num_workers_per_proc, filter_args,
             )
         for future in concurrent.futures.as_completed(futures):
             future.result()
+    print(f"GPU {gpu_id} Done")
     del detector
-
-def process_per_gpu(mp4_path_chunks_list, gpu_id, num_workers_per_proc, filter_args, name_args):
-    for mp4_path_chunks in mp4_path_chunks_list:
-        process_per_proc(mp4_path_chunks, gpu_id, num_workers_per_proc, filter_args, name_args)
+        
 
 def load_config(config_path):
     with open(config_path, 'r') as f:
@@ -149,7 +166,6 @@ if __name__ == "__main__":
     gpu_ids = [0,1,2,3,4,5,6,7]
 
     video_roots = config.get('video_roots', [])
-    videos_per_worker = config.get('videos_per_worker', 8)
     num_workers_per_proc = config.get('num_workers_per_proc', 8)
     flag_remove_last = config.get('remove_last', False)
     single_gpu_test = config.get('single_gpu_test', False)
@@ -194,29 +210,23 @@ if __name__ == "__main__":
     random.shuffle(video_mp4_paths)
     print(f"all videos num {len(video_mp4_paths)}")
 
-    # 每个gpu一次处理这么多
-    loader_batch_size = num_workers_per_proc * videos_per_worker
-    # video_chunks 为总共需要处理的次数
-    video_chunks = [
-        video_mp4_paths[i : i + loader_batch_size]
-        for i in range(0, len(video_mp4_paths), loader_batch_size)
-    ]
-    # 每个gpu分一些video_chunk去串行处理
-    gpu_chunks_list = [video_chunks[i::len(gpu_ids)] for i in range(len(gpu_ids))]
-    processes = []
-
+    gpu_chunks = [[] for _ in gpu_ids]
+    for idx, video in enumerate(video_mp4_paths):
+        gpu_idx = idx % len(gpu_ids)
+        gpu_chunks[gpu_idx].append(video)
 
     # 单卡串行debug
     if single_gpu_test:
-        for gpu_chunk in gpu_chunks_list:
+        for gpu_chunk in gpu_chunks:
             process_per_gpu(gpu_chunk, 0, num_workers_per_proc, filter_args, name_args)
         
     # 每张卡一个进程
     else:
+        processes = []
         for i, gpu_id in enumerate(gpu_ids):
             p = multiprocessing.Process(
                 target=process_per_gpu,
-                args=(gpu_chunks_list[i], i, num_workers_per_proc, filter_args, name_args),
+                args=(gpu_chunks[i], i, num_workers_per_proc, filter_args, name_args),
             )
             p.start()
             processes.append(p)

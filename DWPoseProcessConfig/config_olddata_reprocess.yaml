@@ -8,16 +8,9 @@ video_roots:
   -  '/workspace/ywh_data/DataProcess/pexels1k/videos_filtered'
   -  '/workspace/ywh_data/DataProcess/supplier/videos_filtered'
 
-
-videos_per_worker: 8    # 多少个一组
-num_workers_per_proc: 16  # 并发数量 >20无明显收益, single gpu test时记得调成1
+num_workers_per_proc: 12
 remove_last: True
 single_gpu_test: False
-
-# videos_per_worker: 8
-# num_workers_per_proc: 1
-# remove_last: False
-# single_gpu_test: True
 
 filter_args:
   use_filter: False

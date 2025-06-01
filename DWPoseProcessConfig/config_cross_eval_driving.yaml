@@ -102,7 +102,6 @@ video_roots:
   - "/workspace/ywh_data/crossEval/cross_pair_eval100/100/videos"
 
 
-videos_per_worker: 100    # 多少个一组
 num_workers_per_proc: 1  # 并发数量 >20无明显收益  # 对于pexels等数据集，里面会有一些视频特别长，调大了可能会爆
 remove_last: False
 single_gpu_test: True  # 根据save_mp4决定要不要删视频

@@ -1,7 +1,6 @@
 video_roots:
   - "/workspace/ywh_data/DataProcessNew/pexels1k/videos_multi_step1"
 
-videos_per_worker: 100
 num_workers_per_proc: 1
 remove_last: True
 single_gpu_test: True
