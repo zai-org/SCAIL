@@ -265,6 +265,8 @@ def check_from_keypoints_stick_movement(keypoints, angle_threshold):
                     
                 max_delta = max(delta, max_delta)
             max_delta_list.append(max_delta)
+            max_delta_list = sorted(max_delta_list)
+            max_delta_list = max_delta_list[8:-8] # 去掉两端8个最大值和最小值
             avg_movement = sum(max_delta_list) / len(max_delta_list)
             if avg_movement < angle_threshold:  # 筛去过小的动作
                 return False

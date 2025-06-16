@@ -4,7 +4,7 @@ video_roots:
   - "/workspace/ywh_data/DataProcessNew/bili_shuping_0929/videos_multi_step1"
 
 
-num_workers_per_proc: 8  # 并发数量，8-12
+num_workers_per_proc: 8
 remove_last: True
 single_gpu_test: False  # 根据save_mp4决定要不要删视频
 
@@ -12,7 +12,6 @@ filter_args:
   use_filter: True
   save_mp4: False
   multi_person: True
-  timeout_per_video: 40 # 每个多人视频理论上处理应该在40s之内，目前设置为并发数量*5
 
 name_args:
   keypoint_suffix_name: "_keypoints"

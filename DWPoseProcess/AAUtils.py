@@ -219,18 +219,7 @@ def read_frames_and_fps_as_np(video_path):
     except Exception as e:
         print(f"Error reading frames from {video_path}: {e}")
         return None, None  # 返回 None 避免代码崩溃
-    
-def resize_image(input_image, resolution=512):
-    H, W, C = input_image.shape
-    H = float(H)
-    W = float(W)
-    k = float(resolution) / min(H, W)
-    H *= k
-    W *= k
-    H = int(np.round(H / 64.0)) * 64
-    W = int(np.round(W / 64.0)) * 64
-    img = cv2.resize(input_image, (W, H), interpolation=cv2.INTER_LANCZOS4 if k > 1 else cv2.INTER_AREA)
-    return img
+
 
 
 def save_videos_from_pil(pil_images, path, fps=8):

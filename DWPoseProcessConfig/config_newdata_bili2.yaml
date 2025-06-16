@@ -1,16 +1,17 @@
 # 处理进度见/workspace/ywh_data/DataProcess/ProcessDataViaAPI/process_config.yaml
 video_roots:
-  - "/workspace/ywh_data/DataProcessNew/pexels1k/videos_multi_step1"
-  - "/workspace/ywh_data/DataProcessNew/pexels_hengping/videos_multi_step1"
+  - "/workspace/ywh_data/DataProcessNew/bilibili_dance_hengping_0929/videos_step1"
+  - "/workspace/ywh_data/DataProcessNew/bili_dance_shuping_20250122/videos_step1"
 
-num_workers_per_proc: 4
+
+num_workers_per_proc: 8
 remove_last: True
 single_gpu_test: False  # 根据save_mp4决定要不要删视频
 
 filter_args:
   use_filter: True
   save_mp4: False
-  multi_person: True
+  multi_person: False
 
 name_args:
   keypoint_suffix_name: "_keypoints"

@@ -71,6 +71,7 @@ def read_pose_from_jsonl(jsonl_path):
     poses = []
     with jsonlines.open(jsonl_path) as reader:
         for obj in reader:
+            breakpoint()
             body_points = convert_3dpose_to_2dpose_body(obj["body"], obj["face"])
             candidate = [body_points]
             subset = [[i for i in range(24)]]

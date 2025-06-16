@@ -3,7 +3,7 @@ video_roots:
   - "/workspace/ywh_data/DataProcessNew/supplier/videos_step1"
   - "/workspace/ywh_data/DataProcessNew/dongman/videos_step1"
 
-num_workers_per_proc: 12
+num_workers_per_proc: 8
 remove_last: True
 single_gpu_test: False  # 根据save_mp4决定要不要删视频
 

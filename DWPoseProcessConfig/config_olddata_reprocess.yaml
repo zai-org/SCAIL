@@ -8,7 +8,7 @@ video_roots:
   -  '/workspace/ywh_data/DataProcess/pexels1k/videos_filtered'
   -  '/workspace/ywh_data/DataProcess/supplier/videos_filtered'
 
-num_workers_per_proc: 12
+num_workers_per_proc: 8
 remove_last: True
 single_gpu_test: False
 

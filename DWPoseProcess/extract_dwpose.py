@@ -95,7 +95,7 @@ def process_single_video_with_timeout(video_path, detector, relative_path, save_
     if "timeout_per_video" in filter_args:
         timeout_seconds = filter_args["timeout_per_video"]
     else:
-        timeout_seconds = 120
+        timeout_seconds = 150
 
     def task():
         process_single_video(video_path, detector, relative_path,

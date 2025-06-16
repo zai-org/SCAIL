@@ -1,20 +1,13 @@
 directories: 
-  - "/workspace/ywh_data/DataProcess/biaobei_CN_JP_KR/videos_filtered"
-  - "/workspace/ywh_data/DataProcess/bili_shuping_0929/videos_filtered"
-  - "/workspace/ywh_data/DataProcess/hd_movie_video_data/videos_filtered"
-  - "/workspace/ywh_data/DataProcess/bilibili_dance_shuping_0929/videos_filtered"
-  - "/workspace/ywh_data/DataProcess/panda70m/videos_filtered"
-  - "/workspace/ywh_data/DataProcess/pexels1k/videos_filtered"
-  - "/workspace/ywh_data/DataProcess/pexels_hengping/videos_filtered"
-  - "/workspace/ywh_data/DataProcess/supplier/videos_filtered"
+  - "/workspace/ywh_data/DataProcessNew/pexels1k/videos_step1_filtered"
 
-
+threed_json_dirs:
+  - "/workspace/ys_data/filtered_data_new/data_pexels1k/keypoints"
   
-reshape_scale: 0.1
+reshape_scale: 0
 points_only_flag: False
 show_feet_flag: False
-pose_type: "dwpose"
-target_representation_suffix: "_dwpose_reshaped"
+pose_type: "dwpose+3dpose"
+target_representation_suffix: "_3dpose_test"
 remove_last_flag: True
-keypoints_suffix_dwpose: "_keypoints_new"
-keypoints_suffix_3dpose: "_keypoints_3dpose"
+keypoints_suffix_dwpose: "_keypoints"

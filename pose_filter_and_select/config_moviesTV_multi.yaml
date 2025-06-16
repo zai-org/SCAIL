@@ -12,6 +12,7 @@ bbox_suffix_name: "_bboxes"
 target_video_suffix_name: "_filtered"
 target_pose_video_suffix_name: "_filtered_dwpose"
 target_keypoint_suffix_name: "_filtered_keypoints"
+target_bbox_suffix_name: "_filtered_bboxes"
 target_ref_image_suffix_name: "_ref_image"
 draw_pose: True
 

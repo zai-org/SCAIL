@@ -189,6 +189,7 @@ class reshapePool:
         self.offset_y = random.uniform(-1/64, 1/64)
         self.scale_x = random.uniform(-0.1, 0.1)
         self.scale_y = random.uniform(-0.1, 0.1)
+        # TODO 0604 增强这部分还是有问题
         self.reshape_methods = [
             self.extend_body,
             self.extend_arm,

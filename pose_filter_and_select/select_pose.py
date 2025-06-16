@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from PIL import Image
 import torch
-from DWPoseProcess.AAUtils import read_frames_and_fps_as_np, save_videos_from_pil, resize_image
+from DWPoseProcess.AAUtils import read_frames_and_fps_as_np, save_videos_from_pil
 from DWPoseProcess.checkUtils import *
 import random
 import shutil
@@ -12,7 +12,7 @@ import os
 from tqdm import tqdm
 from multiprocessing import Process, Queue
 from pose_draw.draw_pose_main import draw_pose_to_canvas
-
+import concurrent.futures
 
 
 def process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps=None, multi_person=False, draw_pose=False):
@@ -72,13 +72,13 @@ def process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_
                 if final_ref_image_indice is None:
                     start_index += random.randint(3, 4)
                     continue
-                delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.02)
+                delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.04)
                 if not delta_check_result:
                     start_index += random.randint(3, 4)
                     continue
             else:
                 final_ref_image_indice = random.choice(ref_part_check_indices)
-                delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.03)
+                delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.04)
                 if not delta_check_result:
                     start_index += random.randint(3, 4)
                     continue
@@ -105,6 +105,19 @@ def process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_
             save_videos_from_pil(pose_frames, target_pose_video_path, wanted_fps)
         return
     
+def process_video_with_timeout(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps=None, multi_person=False, draw_pose=False):
+    timeout_seconds = 150
+    def task():
+        process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps, multi_person, draw_pose)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(task)
+        try:
+            future.result(timeout=timeout_seconds)
+        except concurrent.futures.TimeoutError:
+            print(f"超时：处理视频 {mp4_path} 超过 {timeout_seconds} 秒，已跳过。")
+        except Exception as e:
+            print(f"处理视频 {mp4_path} 出错：{str(e)}")
 
 def load_config(config_path):
     with open(config_path, 'r') as f:
@@ -126,7 +139,7 @@ def worker(input_queue, directory, original_keypoints_dir, original_bboxes_dir, 
             target_ref_image_path = os.path.join(ref_image_dir, mp4_filename.replace(".mp4", ".jpg"))
             target_keypoints_path = os.path.join(filtered_keypoints_dir, mp4_filename.replace(".mp4", ".pt"))
             if os.path.exists(mp4_path) and os.path.exists(keypoint_path) and os.path.exists(bbox_path):
-                process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps=16, multi_person=multi_person, draw_pose=draw_pose)
+                process_video_with_timeout(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps=16, multi_person=multi_person, draw_pose=draw_pose)
         except Exception as e:
             print(f"Error processing {item}: {e}")
 
@@ -190,7 +203,7 @@ if __name__ == "__main__":
         #     target_ref_image_path = os.path.join(ref_image_dir, mp4_filename.replace(".mp4", ".jpg"))
         #     target_keypoints_path = os.path.join(filtered_keypoints_dir, mp4_filename.replace(".mp4", ".pt"))
         #     if os.path.exists(mp4_path) and os.path.exists(keypoint_path) and os.path.exists(bbox_path):
-        #         process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps=16, multi_person=multi_person, draw_pose=draw_pose)
+        #         process_video_with_timeout(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps=16, multi_person=multi_person, draw_pose=draw_pose)
 
         # 并行
         max_tasks_buffer = 24

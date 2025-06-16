@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pose_draw.draw_utils as util
 from pose_draw.draw_3d_utils import *
 from pose_draw.reshape_utils import *
-from DWPoseProcess.AAUtils import read_frames_and_fps_as_np, save_videos_from_pil, resize_image
+from DWPoseProcess.AAUtils import read_frames_and_fps_as_np, save_videos_from_pil
 from DWPoseProcess.checkUtils import *
 import random
 import shutil
