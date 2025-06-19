@@ -1,0 +1,16 @@
+directories: 
+  - "/workspace/ywh_data/DataProcessNew/bili_dance_shuping_20250122/videos_step1"
+  - "/workspace/ywh_data/DataProcessNew/bilibili_dance_hengping_0929/videos_step1"
+  
+
+  
+remove_last_flag: True
+multi_person: False
+keypoint_suffix_name: "_keypoints"
+bbox_suffix_name: "_bboxes"
+target_video_suffix_name: "_filtered"
+target_pose_video_suffix_name: "_filtered_dwpose"
+target_keypoint_suffix_name: "_filtered_keypoints"
+target_bbox_suffix_name: "_filtered_bboxes"
+target_ref_image_suffix_name: "_ref_image"
+draw_pose: True

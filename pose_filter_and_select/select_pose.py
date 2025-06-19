@@ -72,13 +72,13 @@ def process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_
                 if final_ref_image_indice is None:
                     start_index += random.randint(3, 4)
                     continue
-                delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.04)
+                delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.03)
                 if not delta_check_result:
                     start_index += random.randint(3, 4)
                     continue
             else:
                 final_ref_image_indice = random.choice(ref_part_check_indices)
-                delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.04)
+                delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.03)
                 if not delta_check_result:
                     start_index += random.randint(3, 4)
                     continue
@@ -206,7 +206,7 @@ if __name__ == "__main__":
         #         process_video_with_timeout(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps=16, multi_person=multi_person, draw_pose=draw_pose)
 
         # 并行
-        max_tasks_buffer = 24
+        max_tasks_buffer = 32
         task_queue = Queue(maxsize=max_tasks_buffer)
         workers = []
         for _ in range(max_tasks_buffer):
