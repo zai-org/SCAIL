@@ -127,6 +127,10 @@ def process_per_gpu(mp4_path_list, gpu_id, num_workers_per_proc, filter_args, na
     detector = DWposeDetector(use_batch=False)
     detector = detector.to(gpu_id)
     # 再把mp4_path_list分成video_chunks_per_proc，每块gpu多个进程
+    if len(mp4_path_list) == 0:
+        print(f"GPU {gpu_id} Done")
+        del detector
+        return
     perproc_batch_size = (len(mp4_path_list) + num_workers_per_proc - 1) // num_workers_per_proc
     video_chunks_per_proc = [
         mp4_path_list[i : i + perproc_batch_size]
@@ -143,6 +147,7 @@ def process_per_gpu(mp4_path_list, gpu_id, num_workers_per_proc, filter_args, na
             future.result()
     print(f"GPU {gpu_id} Done")
     del detector
+    return
         
 
 def load_config(config_path):

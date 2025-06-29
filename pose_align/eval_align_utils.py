@@ -374,6 +374,8 @@ def get_align_args_and_offset(body_ref_img, body_1st_img, hands_ref_img, faces_r
 
     # centre offset (the offset of key point 1)
     offset = body_ref_img[1] - body_1st_img[1]
+    for k in align_args:
+        align_args[k] = np.clip(align_args[k], 0.5, 1.5)
     return align_args, offset
 
 

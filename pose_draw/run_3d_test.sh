@@ -1,0 +1,1 @@
+python draw_pose_main.py --config 3d_test_draw.yaml

@@ -104,7 +104,11 @@ def render_colored_cylinders(cylinder_specs, focal, princpt, image_size=(1280, 1
     color = color.astype(np.float32) / 255.0
     # 转 uint8
     final_img = (color * 255).astype(np.uint8)
-    final_img = cv2.add(final_img, img)
+
+    mask_bool = np.any(final_img != 0, axis=-1)
+    combined_img = np.where(np.expand_dims(mask_bool, axis=-1) if len(final_img.shape) == 3 else mask_bool,
+                            final_img,
+                            img)
 
     # 画点，检查投射是否正确
     # for (x, y) in points_to_draw:
@@ -112,4 +116,4 @@ def render_colored_cylinders(cylinder_specs, focal, princpt, image_size=(1280, 1
     #     y_draw = int(y)
     #     cv2.circle(final_img, (x_draw, y_draw), radius=4, color=(0, 255, 0), thickness=-1)
 
-    return Image.fromarray(final_img)
+    return Image.fromarray(combined_img)

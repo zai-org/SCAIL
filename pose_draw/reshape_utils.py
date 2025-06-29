@@ -4,9 +4,7 @@ import random
 def pose_offset(offset_x, offset_y, pose):
     for i in range(len(pose["bodies"]["candidate"])):
         bodies = pose["bodies"]
-        # faces = pose["faces"][i:i+1]
         faces = pose["faces"][i]
-        # hands = pose["hands"][2*i:2*i+2]
         right_hand = pose["hands"][2 * i]
         left_hand = pose["hands"][2 * i + 1]
         candidate = bodies["candidate"][i]
@@ -38,17 +36,17 @@ def pose_offset(offset_x, offset_y, pose):
             body_point[1] = body_point[1] + offset_y
 
 
-def pose_whole_scale(scale_x, scale_y, pose):
+def pose_whole_scale(scale_x, scale_y, pose):   # 目前仅能用于单人
     # 获取最左端的x 最右端的x 最上端的y 最下端的y
     min_x = float('inf')
     max_x = float('-inf')
     min_y = float('inf')
     max_y = float('-inf')
+    if len(pose["bodies"]["candidate"]) > 1:
+        return
     for i in range(len(pose["bodies"]["candidate"])):
         bodies = pose["bodies"]
-        # faces = pose["faces"][i:i+1]
         faces = pose["faces"][i]
-        # hands = pose["hands"][2*i:2*i+2]
         right_hand = pose["hands"][2 * i]
         left_hand = pose["hands"][2 * i + 1]
         candidate = bodies["candidate"][i]
@@ -141,17 +139,17 @@ def pose_reshape(alpha, pose,
         assert anchor_part == 0, "anchor part must belong to the body"
         anchor_x, anchor_y = candidate[anchor_point]
         if subset[anchor_point] == -1:
-            return
+            continue
 
         if end_part == 0:
             end_x, end_y = candidate[end_point]
             if subset[end_point] == -1:
-                return
+                continue
         elif end_part == 1:
             end_x, end_y = faces[end_point]
         # 不考虑Hands
         if end_x == -1 and end_y == -1:
-            return
+            continue
         
         vector_x = end_x - anchor_x
         vector_y = end_y - anchor_y
@@ -185,23 +183,26 @@ class reshapePool:
         self.left_hands_indices = np.arange(0, 21)
         self.right_hands_indices = np.arange(0, 21)
         self.alpha = alpha  # 0.1
-        self.offset_x = random.uniform(-1/64, 1/64)
-        self.offset_y = random.uniform(-1/64, 1/64)
-        self.scale_x = random.uniform(-0.1, 0.1)
-        self.scale_y = random.uniform(-0.1, 0.1)
-        # TODO 0604 增强这部分还是有问题
-        self.reshape_methods = [
+        self.offset_x = random.uniform(-1/16, 1/16)
+        self.offset_y = random.uniform(-1/16, 1/16)
+        self.scale_x = random.uniform(-alpha/2, alpha/2)
+        self.scale_y = random.uniform(-alpha/2, alpha/2)
+
+        self.body_reshape_methods = [
             self.extend_body,
             self.extend_arm,
             self.extend_leg,
             self.shrink_body,
             self.shrink_arm,
             self.shrink_leg,
+        ]
+        self.scale_reshape_methods = [
             self.offset_wholebody,
             self.scale_wholebody,
+            self.dilate_face,
+            self.shrink_face,
         ]
-        self.selected_methods = random.sample(self.reshape_methods, 2)
-        # self.selected_methods = [self.reshape_face]
+        self.selected_methods = random.sample(self.body_reshape_methods, 2) + random.sample(self.scale_reshape_methods, 1)
 
     def apply_random_reshapes(self, pose):
         # Apply the two selected reshape methods
@@ -331,13 +332,24 @@ class reshapePool:
     def dilate_face(self, pose):
         for i in self.faces_indices:
             pose_reshape(self.alpha, pose,
-                     1, 0, i, 1,
+                     0, 0, i, 1,
                      [], [i], [], []
                      )
+        for i in [14, 15, 16, 17]:
+            pose_reshape(self.alpha, pose,
+                    0, 0, i, 0,
+                    [i], [], [], []
+                    )
         
-    def shrink_face(self, pose):
+    def shrink_face(self, pose):    # 缩小脸会看不清
         for i in self.faces_indices:
-            pose_reshape(-self.alpha, pose,
-                     1, 0, i, 1,
+            pose_reshape(-self.alpha / 2, pose,
+                     0, 0, i, 1,
                      [], [i], [], []
                      )
+            
+        for i in [14, 15, 16, 17]:
+            pose_reshape(-self.alpha / 2, pose,
+                    0, 0, i, 0,
+                    [i], [], [], []
+                    )

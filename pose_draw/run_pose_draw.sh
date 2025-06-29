@@ -1,1 +1,0 @@
-python draw_pose_main.py --config config_draw.yaml 

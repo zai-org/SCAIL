@@ -19,14 +19,14 @@ from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 from render_3d.render_cylinder import render_colored_cylinders
 from decord import VideoReader
-
+import copy
 
 
 
 def draw_pose_points_only(pose, H, W, show_feet=False):
     raise NotImplementedError("draw_pose_points_only is not implemented")
 
-def draw_pose(pose, H, W, show_feet=False, show_body=True):
+def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_face=True):
     final_canvas = np.zeros(shape=(H, W, 3), dtype=np.uint8)
     for i in range(len(pose["bodies"]["candidate"])):
         canvas = np.zeros(shape=(H, W, 3), dtype=np.uint8)
@@ -42,21 +42,22 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True):
             else:
                 canvas = util.draw_bodypose_with_feet(canvas, candidate, subset)
 
-        canvas = util.draw_handpose_lr(canvas, hands)
-
-        canvas = util.draw_facepose(canvas, faces)
+        if show_hand:
+            canvas = util.draw_handpose_lr(canvas, hands)
+        if show_face:
+            canvas = util.draw_facepose(canvas, faces)
         final_canvas = final_canvas + canvas
     return final_canvas
 
-def draw_pose_to_canvas(poses, pool, H, W, reshape_scale, points_only_flag, show_feet_flag, show_body_flag=True):
+def draw_pose_to_canvas(poses, pool, H, W, reshape_scale, points_only_flag, show_feet_flag, show_body_flag=True, show_hand_flag=True, show_face_flag=True):
     canvas_lst = []
     for pose in poses:
         if reshape_scale > 0:
             pool.apply_random_reshapes(pose)
         if points_only_flag:
-            canvas = draw_pose_points_only(pose, H, W, show_feet_flag, show_body_flag)
+            canvas = draw_pose_points_only(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag)
         else:
-            canvas = draw_pose(pose, H, W, show_feet_flag, show_body_flag)
+            canvas = draw_pose(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag)
         canvas_img = Image.fromarray(canvas)
         canvas_lst.append(canvas_img)
     return canvas_lst
@@ -91,7 +92,7 @@ def project_dwpose_to_3d(dwpose_keypoint, original_threed_keypoint, focal, princ
 
     return [new_x, new_y, new_z]
 
-def render_3d_pose(canvas_lst, dwpose_keypoint_path, threed_keypoint_pair, output_path):
+def render_3d_pose(frames, canvas_lst, dwpose_keypoint_path, threed_keypoint_pair, output_path):
     keypoint_pt, camera_json = threed_keypoint_pair
     import json
     keypoints = torch.load(keypoint_pt)
@@ -125,24 +126,39 @@ def render_3d_pose(canvas_lst, dwpose_keypoint_path, threed_keypoint_pair, outpu
     ]
 
     limb_seq = [
-        [1, 2],    # Neck -> R. Shoulder
-        [1, 5],    # Neck -> L. Shoulder
-        [2, 3],    # R. Shoulder -> R. Elbow
-        [3, 4],    # R. Elbow -> R. Wrist
-        [5, 6],    # L. Shoulder -> L. Elbow
-        [6, 7],    # L. Elbow -> L. Wrist
-        [1, 8],    # Neck -> R. Hip
-        [8, 9],    # R. Hip -> R. Knee
-        [9, 10],   # R. Knee -> R. Ankle
-        [1, 11],   # Neck -> L. Hip
-        [11, 12],  # L. Hip -> L. Knee
-        [12, 13],  # L. Knee -> L. Ankle
-        [1, 0],    # Neck -> Nose
-        [0, 14],   # Nose -> R. Eye
-        [14, 16],  # R. Eye -> R. Ear
-        [0, 15],   # Nose -> L. Eye
-        [15, 17],  # L. Eye -> L. Ear
+        [1, 2],    # 0 Neck -> R. Shoulder
+        [1, 5],    # 1 Neck -> L. Shoulder
+        [2, 3],    # 2 R. Shoulder -> R. Elbow
+        [3, 4],    # 3 R. Elbow -> R. Wrist
+        [5, 6],    # 4 L. Shoulder -> L. Elbow
+        [6, 7],    # 5 L. Elbow -> L. Wrist
+        [1, 8],    # 6 Neck -> R. Hip
+        [8, 9],    # 7 R. Hip -> R. Knee
+        [9, 10],   # 8 R. Knee -> R. Ankle
+        [1, 11],   # 9 Neck -> L. Hip
+        [11, 12],  # 10 L. Hip -> L. Knee
+        [12, 13],  # 11 L. Knee -> L. Ankle
+        [1, 0],    # 12 Neck -> Nose
+        [0, 14],   # 13 Nose -> R. Eye
+        [14, 16],  # 14 R. Eye -> R. Ear
+        [0, 15],   # 15 Nose -> L. Eye
+        [15, 17],  # 16 L. Eye -> L. Ear
     ]
+
+    draw_seq = [0, 2, 3, # Neck -> R. Shoulder -> R. Elbow -> R. Wrist
+                1, 4, 5, # Neck -> L. Shoulder -> L. Elbow -> L. Wrist
+                6, 7, 8, # Neck -> R. Hip -> R. Knee -> R. Ankle
+                9, 10, 11, # Neck -> L. Hip -> L. Knee -> L. Ankle
+                12, # Neck -> Nose
+                13, 14, # Nose -> R. Eye -> R. Ear
+                15, 16, # Nose -> L. Eye -> L. Ear
+                ]   # 从近心端往外扩展
+    
+    fix_seq = [0, 2, # Neck -> R. Shoulder -> R. Elbow (-> R. Wrist)
+                1, 4, # Neck -> L. Shoulder -> L. Elbow (-> L. Wrist)
+                6, 7, 8, # Neck -> R. Hip -> R. Knee -> R. Ankle
+                9, 10, 11, # Neck -> L. Hip -> L. Knee -> L. Ankle
+                ]   # 从近心端往外扩展
 
     base_colors_255_dict = {
         # Warm Colors for Right Side (R.) - Red, Orange, Yellow
@@ -192,27 +208,93 @@ def render_3d_pose(canvas_lst, dwpose_keypoint_path, threed_keypoint_pair, outpu
     colors = [[c / 300 + 0.15 for c in color_rgb] + [0.8] for color_rgb in ordered_colors_255]
 
     render_images = []
+    all_dwpose_kpts = []
+    all_lift_3d_kpts = []
+    all_camera_3d_kpts = []
+    # 第一轮：替换
     for frame_idx in range(keypoints.shape[0]):
         world_kpts = keypoints[frame_idx][0] # shape: [127, 3], 先处理单人
-        dwpose_kpts = dwpose_keypoint_dicts[frame_idx]['bodies']['candidate'][0]   # shape: [24, 2]，先处理单人
-        img = np.array(canvas_lst[frame_idx])
-        body_3d_keypoints = [None for _ in range(len(openpose_to_jointnames_map))]
-        for mapping in openpose_to_jointnames_map:
-            body_3d_keypoints[mapping[0]] = np.array(world_kpts[mapping[1]])
+        subset = dwpose_keypoint_dicts[frame_idx]['bodies']['subset'][0]
+        dwpose_kpts = copy.deepcopy(dwpose_keypoint_dicts[frame_idx]['bodies']['candidate'][0])   # shape: [24, 2]，先处理单人
+        for i in range(len(dwpose_kpts)):
+            if subset[i] < 0:
+                dwpose_kpts[i] = [-1, -1]
+        ori_3d_kpts = [None for _ in range(len(openpose_to_jointnames_map))]
+        lift_3d_kpts = [None for _ in range(len(openpose_to_jointnames_map))]
         camera_R = extrinsics_rotate[frame_idx]
         camera_T = extrinsics_translate[frame_idx]
-        cylinder_specs = []
-        for line_idx, line in enumerate(limb_seq):
+        for mapping in openpose_to_jointnames_map:
+            global_3d_kpt = np.array(world_kpts[mapping[1]])
+            camera_3d_kpt = np.dot(camera_R, global_3d_kpt) + camera_T
+            ori_3d_kpts[mapping[0]] = camera_3d_kpt
+            if dwpose_kpts[mapping[0]][0] == -1:
+                lift_3d_kpts[mapping[0]] = camera_3d_kpt
+            else:
+                lift_3d_kpts[mapping[0]] = project_dwpose_to_3d(dwpose_kpts[mapping[0]], camera_3d_kpt, img_focal, img_princpt, H, W)
+
+        for line_idx in fix_seq:
+            line = limb_seq[line_idx]
             start, end = line[0], line[1]
-            start_3d = body_3d_keypoints[start] # shape: [3]
-            end_3d = body_3d_keypoints[end] # shape: [3]
-            start_3d = np.dot(camera_R, start_3d) + camera_T
-            end_3d = np.dot(camera_R, end_3d) + camera_T
-            if dwpose_kpts[start][0] < 0 or dwpose_kpts[start][1] < 0 or dwpose_kpts[end][0] < 0 or dwpose_kpts[end][1] < 0:
+            correct_lift_end_kpt_by_phmr(start, end, dwpose_kpts, lift_3d_kpts[start], lift_3d_kpts[end], ori_3d_kpts[start], ori_3d_kpts[end])
+        
+        all_dwpose_kpts.append(dwpose_kpts)
+        all_camera_3d_kpts.append(ori_3d_kpts)
+        all_lift_3d_kpts.append(lift_3d_kpts)
+    
+    # 第二轮：时序纠错
+    for frame_idx in range(keypoints.shape[0]):
+        if frame_idx == 0:
+            continue
+        dwpose_kpts = all_dwpose_kpts[frame_idx]
+        camera_3d_kpts = all_camera_3d_kpts[frame_idx]
+        last_camera_3d_kpt = all_camera_3d_kpts[frame_idx - 1]
+        lift_3d_kpts = all_lift_3d_kpts[frame_idx]
+        last_lift_3d_kpts = all_lift_3d_kpts[frame_idx - 1]
+
+        camera_vec_cos_arc = []     # camera中骨骼的弧度
+        for line_idx in draw_seq:
+            line = limb_seq[line_idx]
+            start, end = line[0], line[1]
+            vec1 =  np.array(camera_3d_kpts[start]) - np.array(camera_3d_kpts[end])
+            vec2 = np.array(last_camera_3d_kpt[start]) - np.array(last_camera_3d_kpt[end])
+            if dwpose_kpts[start][0] == -1 or dwpose_kpts[end][0] == -1:
+                camera_vec_cos_arc.append(-1)
+            else:
+                camera_vec_cos_arc.append(np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2)))
+        
+        # 进行纠错
+        for draw_idx, line_idx in enumerate(draw_seq):
+            line = limb_seq[line_idx]
+            start, end = line[0], line[1]
+            vec1_lift = np.array(lift_3d_kpts[start]) - np.array(lift_3d_kpts[end])
+            vec2_lift = np.array(last_lift_3d_kpts[start]) - np.array(last_lift_3d_kpts[end])
+            vec1_lift_len = np.linalg.norm(vec1_lift)
+            vec2_lift_len = np.linalg.norm(vec2_lift)
+            lift_cos_arc = np.dot(vec1_lift, vec2_lift) / (vec1_lift_len * vec2_lift_len)
+            if dwpose_kpts[start][0] == -1 or dwpose_kpts[end][0] == -1 or all_dwpose_kpts[frame_idx-1][start][0] == -1 or all_dwpose_kpts[frame_idx-1][end][0] == -1:
                 continue
-            start_3d = project_dwpose_to_3d(dwpose_kpts[start], start_3d, img_focal, img_princpt, H, W)
-            end_3d = project_dwpose_to_3d(dwpose_kpts[end], end_3d, img_focal, img_princpt, H, W)
-            cylinder_specs.append((start_3d, end_3d, colors[line_idx]))
+            elif lift_cos_arc > camera_vec_cos_arc[draw_idx] + np.pi / 8 or lift_cos_arc > np.pi / 3:
+                all_dwpose_kpts[frame_idx][end] = [-1, -1]
+            # 骨骼长度突然变长
+            elif vec1_lift_len > vec2_lift_len * 1.5:
+                all_dwpose_kpts[frame_idx][end] = [-1, -1]
+            
+
+    # 第三轮，开始画
+    for frame_idx in range(keypoints.shape[0]):
+        dwpose_kpts = all_dwpose_kpts[frame_idx]
+        lift_3d_kpts = all_lift_3d_kpts[frame_idx]
+        camera_3d_kpts = all_camera_3d_kpts[frame_idx]
+        img = np.array(canvas_lst[frame_idx])
+        img = frames[frame_idx]
+        cylinder_specs = []
+        for line_idx in draw_seq:
+            line = limb_seq[line_idx]
+            start, end = line[0], line[1]
+            if dwpose_kpts[start][0] == -1 or dwpose_kpts[end][0] == -1:
+                continue
+            else:
+                cylinder_specs.append((lift_3d_kpts[start], lift_3d_kpts[end], colors[line_idx]))
         
         render_image = render_colored_cylinders(cylinder_specs, img_focal, img_princpt, image_size=(H, W), img=img)
         render_images.append(render_image)
@@ -232,7 +314,7 @@ def process_video(mp4_path, dwpose_keypoint_path, threed_keypoint_pair, reshape_
         poses = torch.load(dwpose_keypoint_path)
         pool = None
         canvas_lst = draw_pose_to_canvas(poses, pool, initial_frame.shape[0], initial_frame.shape[1], reshape_scale, points_only_flag, show_feet_flag, show_body_flag=False)
-        render_3d_pose(canvas_lst, dwpose_keypoint_path, threed_keypoint_pair, output_path)
+        render_3d_pose(frames, canvas_lst, dwpose_keypoint_path, threed_keypoint_pair, output_path)
     else:
         poses = torch.load(dwpose_keypoint_path)
         pool = reshapePool(alpha=reshape_scale)
@@ -264,13 +346,15 @@ if __name__ == "__main__":
     pose_type = config.get("pose_type", "dwpose")
     target_representation_dirname = config.get("target_representation_suffix", None)
     keypoints_suffix_dwpose = config.get("keypoints_suffix_dwpose", "_keypoints")
+    parallel_flag = config.get("parallel_flag", False)
 
 
-    mp4_paths = []
-    dwpose_keypoint_paths = []
-    threed_keypoint_paths = []
+
 
     for dir_idx, directory in enumerate(directories):
+        mp4_paths = []
+        dwpose_keypoint_paths = []
+        threed_keypoint_paths = []
         output_representation_dir = directory + target_representation_dirname
         if remove_last_flag:
             # 删除 directory 中所有文件
@@ -279,11 +363,11 @@ if __name__ == "__main__":
             print(f"已清除上次产生的{output_representation_dir}文件夹")
 
         video_directory_name = directory.split("/")[-1]
-
         # video_directory_name 是 directory的最后一层子目录
-        dwpose_keypoints_dir = directory.replace(video_directory_name, f"{video_directory_name}{keypoints_suffix_dwpose}")   # TODO: 暂时修改
+        dwpose_keypoints_dir = directory.replace(video_directory_name, f"{video_directory_name}{keypoints_suffix_dwpose}")
         mp4_filenames_dwpose = get_mp4_filenames_from_directory(dwpose_keypoints_dir)
-        threed_kpt_dir = threed_kpt_dirs[dir_idx]
+        if "3dpose" in pose_type:
+            threed_kpt_dir = threed_kpt_dirs[dir_idx]
 
         print(f"Processing directory: {directory}")
         for root, dirs, files in os.walk(directory):
@@ -306,12 +390,14 @@ if __name__ == "__main__":
                         dwpose_keypoint_paths.append(full_dwpose_path)
                         threed_keypoint_paths.append(None)
 
-        # 串行
-        for path_idx, mp4_path in tqdm(enumerate(mp4_paths), desc="Processing videos", unit="video"):
-            process_video(mp4_path, dwpose_keypoint_paths[path_idx], threed_keypoint_paths[path_idx], reshape_scale, points_only_flag, show_feet_flag, wanted_fps=16, output_dirname=output_representation_dir, pose_type=pose_type)
-    # 并行
-        # with Pool(64) as p:
-        #     p.starmap(process_video, [(mp4_path, dwpose_keypoint_paths[path_idx], threed_keypoint_paths[path_idx], reshape_scale, points_only_flag, show_feet_flag, 16, output_representation_dir, pose_type) for path_idx, mp4_path in enumerate(mp4_paths)])
+        
+        # 并行
+        if parallel_flag:
+            with Pool(64) as p:
+                p.starmap(process_video, [(mp4_path, dwpose_keypoint_paths[path_idx], threed_keypoint_paths[path_idx], reshape_scale, points_only_flag, show_feet_flag, 16, output_representation_dir, pose_type) for path_idx, mp4_path in enumerate(mp4_paths)])
+        else: # 串行
+            for path_idx, mp4_path in tqdm(enumerate(mp4_paths), desc="Processing videos", unit="video"):
+                process_video(mp4_path, dwpose_keypoint_paths[path_idx], threed_keypoint_paths[path_idx], reshape_scale, points_only_flag, show_feet_flag, wanted_fps=16, output_dirname=output_representation_dir, pose_type=pose_type)
 
 
     

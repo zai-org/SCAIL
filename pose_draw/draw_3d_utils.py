@@ -66,19 +66,25 @@ def convert_3dpose_to_2dpose_face(face_keypoints):
     result = [[-1, -1] if i in [0, 1, 4, 5, 6, 7, 8] else [pt[1], pt[0]] for i, pt in enumerate(face_keypoints)]
     return result
 
-def read_pose_from_jsonl(jsonl_path):
-    import jsonlines
-    poses = []
-    with jsonlines.open(jsonl_path) as reader:
-        for obj in reader:
-            breakpoint()
-            body_points = convert_3dpose_to_2dpose_body(obj["body"], obj["face"])
-            candidate = [body_points]
-            subset = [[i for i in range(24)]]
-            faces = [convert_3dpose_to_2dpose_face(obj["face"])]
-            hands = convert_3dpose_to_2dpose_hand(obj["left_hand"],obj["right_hand"], obj["body"])
-            poses.append({"bodies":{"candidate": candidate, "subset": subset}, "faces": faces, "hands": hands})
-    return poses
+def correct_lift_end_kpt_by_phmr(start, end, dwpose_kpts, lift_start, lift_end, phmr_start, phmr_end):
+    '''
+    检查另一端是否符合要求, 符合要求则返回lift后结果，不然返回phmr结果
+    '''
+    if dwpose_kpts[start][0] == -1:
+        return
+    lift_vec = np.array(lift_end) - np.array(lift_start)
+    phmr_vec = np.array(phmr_end) - np.array(phmr_start)
+    start_distance = np.linalg.norm(np.array(lift_start) - np.array(phmr_start))
+    end_distance = np.linalg.norm(np.array(lift_end) - np.array(phmr_end))
+    lift_vec_len = np.linalg.norm(lift_vec)
+    phmr_vec_len = np.linalg.norm(phmr_vec)
+    if start_distance + end_distance > phmr_vec_len:
+        dwpose_kpts[end] = [-1, -1]
+    theta = np.arccos(np.dot(lift_vec, phmr_vec) / (lift_vec_len * phmr_vec_len))
+    if lift_vec_len > phmr_vec_len * 1.65 or lift_vec_len < phmr_vec_len * 0.4 or theta > np.pi / 4:
+        dwpose_kpts[end] = [-1, -1]
+    return
+
 
 
 def mix_3d_poses(poses_dwpose, poses_3dpose):
