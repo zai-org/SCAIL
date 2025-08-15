@@ -26,7 +26,7 @@ import copy
 def draw_pose_points_only(pose, H, W, show_feet=False):
     raise NotImplementedError("draw_pose_points_only is not implemented")
 
-def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_face=True):
+def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_face=True, dw_bgr=False):
     final_canvas = np.zeros(shape=(H, W, 3), dtype=np.uint8)
     for i in range(len(pose["bodies"]["candidate"])):
         canvas = np.zeros(shape=(H, W, 3), dtype=np.uint8)
@@ -41,7 +41,8 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_
                 canvas = util.draw_bodypose(canvas, candidate, subset)
             else:
                 canvas = util.draw_bodypose_with_feet(canvas, candidate, subset)
-
+            if dw_bgr:
+                canvas = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
         if show_hand:
             canvas = util.draw_handpose_lr(canvas, hands)
         if show_face:
@@ -49,15 +50,15 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_
         final_canvas = final_canvas + canvas
     return final_canvas
 
-def draw_pose_to_canvas(poses, pool, H, W, reshape_scale, points_only_flag, show_feet_flag, show_body_flag=True, show_hand_flag=True, show_face_flag=True):
+def draw_pose_to_canvas(poses, pool, H, W, reshape_scale, points_only_flag, show_feet_flag, show_body_flag=True, show_hand_flag=True, show_face_flag=True, dw_bgr=False):
     canvas_lst = []
     for pose in poses:
         if reshape_scale > 0:
             pool.apply_random_reshapes(pose)
         if points_only_flag:
-            canvas = draw_pose_points_only(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag)
+            canvas = draw_pose_points_only(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag, dw_bgr)
         else:
-            canvas = draw_pose(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag)
+            canvas = draw_pose(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag, dw_bgr)
         canvas_img = Image.fromarray(canvas)
         canvas_lst.append(canvas_img)
     return canvas_lst
@@ -75,7 +76,8 @@ def get_mp4_filenames_from_directory(dwpose_keypoints_dir):
 
 def project_dwpose_to_3d(dwpose_keypoint, original_threed_keypoint, focal, princpt, H, W):
     # 相机内参
-    fx, fy = focal, focal
+    # fx, fy = focal, focal
+    fx, fy = focal
     cx, cy = princpt
 
     # 2D 关键点坐标
@@ -96,12 +98,17 @@ def render_3d_pose(frames, canvas_lst, dwpose_keypoint_path, threed_keypoint_pai
     keypoint_pt, camera_json = threed_keypoint_pair
     import json
     keypoints = torch.load(keypoint_pt)
+    if isinstance(keypoints, list):     # gvhmr格式
+        keypoints = np.array(keypoints)
+        keypoints = torch.from_numpy(keypoints).permute(1, 0, 2, 3)
     dwpose_keypoint_dicts = torch.load(dwpose_keypoint_path)
     camera_obj = json.load(open(camera_json, "r"))
-    extrinsics_rotate = camera_obj["Rotation_cam2world"]
-    extrinsics_translate = camera_obj["Translation_cam2world"]
-    img_focal = camera_obj["img_focal"]
-    img_princpt = camera_obj["img_center"]
+    # extrinsics_rotate = camera_obj["Rotation_cam2world"]
+    # extrinsics_translate = camera_obj["Translation_cam2world"]
+    # img_focal = camera_obj["img_focal"]
+    # img_princpt = camera_obj["img_center"]
+    img_focal = (camera_obj[0][0], camera_obj[1][1])      # (fx, fy)
+    img_princpt = (camera_obj[0][2], camera_obj[1][2])
     W, H = canvas_lst[0].size
 
     openpose_to_jointnames_map = [
@@ -213,7 +220,8 @@ def render_3d_pose(frames, canvas_lst, dwpose_keypoint_path, threed_keypoint_pai
     all_camera_3d_kpts = []
     # 第一轮：替换
     for frame_idx in range(keypoints.shape[0]):
-        world_kpts = keypoints[frame_idx][0] # shape: [127, 3], 先处理单人
+        # world_kpts = keypoints[frame_idx][0] # 之前的promptHMR存的是Glabal的
+        camera_raw_kpts = keypoints[frame_idx][0] # shape: [127, 3], 先处理单人
         subset = dwpose_keypoint_dicts[frame_idx]['bodies']['subset'][0]
         dwpose_kpts = copy.deepcopy(dwpose_keypoint_dicts[frame_idx]['bodies']['candidate'][0])   # shape: [24, 2]，先处理单人
         for i in range(len(dwpose_kpts)):
@@ -221,11 +229,12 @@ def render_3d_pose(frames, canvas_lst, dwpose_keypoint_path, threed_keypoint_pai
                 dwpose_kpts[i] = [-1, -1]
         ori_3d_kpts = [None for _ in range(len(openpose_to_jointnames_map))]
         lift_3d_kpts = [None for _ in range(len(openpose_to_jointnames_map))]
-        camera_R = extrinsics_rotate[frame_idx]
-        camera_T = extrinsics_translate[frame_idx]
+        # camera_R = extrinsics_rotate[frame_idx]
+        # camera_T = extrinsics_translate[frame_idx]
         for mapping in openpose_to_jointnames_map:
-            global_3d_kpt = np.array(world_kpts[mapping[1]])
-            camera_3d_kpt = np.dot(camera_R, global_3d_kpt) + camera_T
+            # global_3d_kpt = np.array(world_kpts[mapping[1]])
+            # camera_3d_kpt = np.dot(camera_R, global_3d_kpt) + camera_T
+            camera_3d_kpt = camera_raw_kpts[mapping[1]]
             ori_3d_kpts[mapping[0]] = camera_3d_kpt
             if dwpose_kpts[mapping[0]][0] == -1:
                 lift_3d_kpts[mapping[0]] = camera_3d_kpt

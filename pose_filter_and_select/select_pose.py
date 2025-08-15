@@ -14,8 +14,7 @@ from multiprocessing import Process, Queue
 from pose_draw.draw_pose_main import draw_pose_to_canvas
 import concurrent.futures
 
-
-def process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps=None, multi_person=False, draw_pose=False):
+def process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, target_bboxes_path, wanted_fps=None, multi_person=False, draw_pose=False):
     poses = torch.load(keypoint_path)
     bboxes = torch.load(bbox_path)
 
@@ -24,19 +23,19 @@ def process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_
 
     initial_frame = frames[0]
     H, W, C = initial_frame.shape
-    max_attempts = 60
+    max_attempts = 50
     start_index = 0
-    motion_part_len = 65
+    motion_part_len = 161
     ref_part_len = 15
     final_motion_indices = None
     applied_wanted_fps = wanted_fps
 
     while (motion_part_len + ref_part_len) / wanted_fps * fps > len(poses):
-        ref_part_len -= 3
-        if ref_part_len < 4:   # 还是太少，就降fps
-            applied_wanted_fps = wanted_fps * 3 / 4 # 降一些提高产出率
-            if (motion_part_len + ref_part_len) / applied_wanted_fps * fps > len(poses):  # 降了还是不行，就退出了，如果可以就跳出循环
-                # print("filtered: 视频太短，无法满足采样要求，跳过")
+        if ref_part_len > 4:
+            ref_part_len -= 3
+        else:   # ref_part_len为2-4之间
+            motion_part_len -= 16
+            if motion_part_len < 33:    # 不能<33，最低33，[33, 49, 65, 81, .... 161]
                 return
     
     num_frames = ref_part_len + motion_part_len 
@@ -93,22 +92,25 @@ def process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_
     else:
         # 找到
         poses = [poses[i] for i in final_motion_indices]
-        ref_frame = Image.fromarray(frames[final_ref_image_indice])
-        frames = [Image.fromarray(frames[i]) for i in final_motion_indices]
+        ref_frame = frames[final_ref_image_indice]
+        ref_frame_PIL = Image.fromarray(ref_frame)      
+        final_frames = [frames[i] for i in final_motion_indices]
+        final_frames_PIL = [Image.fromarray(frames[i]) for i in final_motion_indices]
         bboxes = [bboxes[i] for i in final_motion_indices]
         # save dwpose keypoints and selected frames / reference frame
-        save_videos_from_pil(frames, target_video_path, wanted_fps)
-        ref_frame.save(target_ref_image_path)
+        save_videos_from_pil(final_frames_PIL, target_video_path, wanted_fps)
+        ref_frame_PIL.save(target_ref_image_path)
         torch.save(poses, target_keypoints_path)
+        torch.save(bboxes, target_bboxes_path)
         if draw_pose:
             pose_frames = draw_pose_to_canvas(poses, pool=None, H=H, W=W, reshape_scale=0, points_only_flag=False, show_feet_flag=False)
             save_videos_from_pil(pose_frames, target_pose_video_path, wanted_fps)
         return
     
-def process_video_with_timeout(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps=None, multi_person=False, draw_pose=False):
+def process_video_with_timeout(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, target_bboxes_path, wanted_fps=None, multi_person=False, draw_pose=False):
     timeout_seconds = 150
     def task():
-        process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps, multi_person, draw_pose)
+        process_video(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, target_bboxes_path, wanted_fps, multi_person, draw_pose)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(task)
@@ -124,7 +126,7 @@ def load_config(config_path):
         config = yaml.safe_load(f)
     return config
 
-def worker(input_queue, directory, original_keypoints_dir, original_bboxes_dir, filtered_keypoints_dir, filtered_video_dir, filtered_pose_video_dir, ref_image_dir, draw_pose):
+def worker(input_queue, directory, original_keypoints_dir, original_bboxes_dir, filtered_keypoints_dir, filtered_bboxes_dir, filtered_video_dir, filtered_pose_video_dir, ref_image_dir, draw_pose):
     while True:
         item = input_queue.get()
         if item == "STOP":
@@ -138,8 +140,9 @@ def worker(input_queue, directory, original_keypoints_dir, original_bboxes_dir, 
             target_pose_video_path = os.path.join(filtered_pose_video_dir, mp4_filename)
             target_ref_image_path = os.path.join(ref_image_dir, mp4_filename.replace(".mp4", ".jpg"))
             target_keypoints_path = os.path.join(filtered_keypoints_dir, mp4_filename.replace(".mp4", ".pt"))
+            target_bboxes_path = os.path.join(filtered_bboxes_dir, mp4_filename.replace(".mp4", ".pt"))
             if os.path.exists(mp4_path) and os.path.exists(keypoint_path) and os.path.exists(bbox_path):
-                process_video_with_timeout(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps=16, multi_person=multi_person, draw_pose=draw_pose)
+                process_video_with_timeout(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, target_bboxes_path, wanted_fps=16, multi_person=multi_person, draw_pose=draw_pose)
         except Exception as e:
             print(f"Error processing {item}: {e}")
 
@@ -160,14 +163,17 @@ if __name__ == "__main__":
     for directory in directories:
         original_keypoints_dir = directory + config.get("keypoint_suffix_name")
         original_bboxes_dir = directory + config.get("bbox_suffix_name")
-        filtered_keypoints_dir = directory + config.get("target_keypoint_suffix_name")
-        filtered_video_dir = directory + config.get("target_video_suffix_name")
-        filtered_pose_video_dir = directory + config.get("target_pose_video_suffix_name")
-        ref_image_dir = directory + config.get("target_ref_image_suffix_name")
+        filtered_keypoints_dir = directory.replace("_step1", "_step2") + config.get("target_keypoint_suffix_name")
+        filtered_bboxes_dir = directory.replace("_step1", "_step2") + config.get("target_bbox_suffix_name")
+        filtered_video_dir = directory.replace("_step1", "_step2") + config.get("target_video_suffix_name")
+        filtered_pose_video_dir = directory.replace("_step1", "_step2") + config.get("target_pose_video_suffix_name")
+        ref_image_dir = directory.replace("_step1", "_step2") + config.get("target_ref_image_suffix_name")
         if remove_last_flag:
             # 删除 directory 中所有文件
             if os.path.exists(filtered_keypoints_dir):
                 shutil.rmtree(filtered_keypoints_dir)
+            if os.path.exists(filtered_bboxes_dir):
+                shutil.rmtree(filtered_bboxes_dir)
             if os.path.exists(filtered_video_dir):
                 shutil.rmtree(filtered_video_dir)
             if os.path.exists(ref_image_dir):
@@ -177,6 +183,7 @@ if __name__ == "__main__":
                     shutil.rmtree(filtered_pose_video_dir)
             print(f"对{filtered_keypoints_dir}/{filtered_video_dir}/{ref_image_dir}已清除上次产生的")
         os.makedirs(filtered_keypoints_dir, exist_ok=True)
+        os.makedirs(filtered_bboxes_dir, exist_ok=True)
         os.makedirs(filtered_video_dir, exist_ok=True)
         os.makedirs(ref_image_dir, exist_ok=True)
         if draw_pose:
@@ -202,15 +209,16 @@ if __name__ == "__main__":
         #     target_pose_video_path = os.path.join(filtered_pose_video_dir, mp4_filename)
         #     target_ref_image_path = os.path.join(ref_image_dir, mp4_filename.replace(".mp4", ".jpg"))
         #     target_keypoints_path = os.path.join(filtered_keypoints_dir, mp4_filename.replace(".mp4", ".pt"))
+        #     target_bboxes_path = os.path.join(filtered_bboxes_dir, mp4_filename.replace(".mp4", ".pt"))
         #     if os.path.exists(mp4_path) and os.path.exists(keypoint_path) and os.path.exists(bbox_path):
-        #         process_video_with_timeout(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, wanted_fps=16, multi_person=multi_person, draw_pose=draw_pose)
+        #         process_video_with_timeout(mp4_path, keypoint_path, bbox_path, target_video_path, target_pose_video_path, target_ref_image_path, target_keypoints_path, target_bboxes_path, wanted_fps=16, multi_person=multi_person, draw_pose=draw_pose)
 
         # 并行
-        max_tasks_buffer = 32
+        max_tasks_buffer = 48
         task_queue = Queue(maxsize=max_tasks_buffer)
         workers = []
         for _ in range(max_tasks_buffer):
-            p = Process(target=worker, args=(task_queue, directory, original_keypoints_dir, original_bboxes_dir, filtered_keypoints_dir, filtered_video_dir, filtered_pose_video_dir, ref_image_dir, draw_pose))
+            p = Process(target=worker, args=(task_queue, directory, original_keypoints_dir, original_bboxes_dir, filtered_keypoints_dir, filtered_bboxes_dir, filtered_video_dir, filtered_pose_video_dir, ref_image_dir, draw_pose))
             p.start()
             workers.append(p)
         for mp4_filename in tqdm(mp4_filenames, desc="Processing videos"):

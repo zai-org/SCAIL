@@ -1,0 +1,5 @@
+directories: 
+  - "/workspace/ywh_data/DataProcessNew/bilibili_dance_hengping_0929/videos_multi_step2_filtered"
+  - "/workspace/ywh_data/DataProcessNew/bili_dance_shuping_20250122/videos_multi_step2_filtered"
+  # - "/workspace/ywh_data/DataProcessNew/bilibili_dance_shuping_0929/videos_step2_filtered"
+  # - "/workspace/ywh_data/DataProcessNew/bili_shuping_0929/videos_step2_filtered"

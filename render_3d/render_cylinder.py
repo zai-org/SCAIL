@@ -117,3 +117,34 @@ def render_colored_cylinders(cylinder_specs, focal, princpt, image_size=(1280, 1
     #     cv2.circle(final_img, (x_draw, y_draw), radius=4, color=(0, 255, 0), thickness=-1)
 
     return Image.fromarray(combined_img)
+
+
+# test
+if __name__ == "__main__":
+    # 构造一个空白背景
+    H, W = 480, 640
+    img = np.zeros((H, W, 3), dtype=np.uint8) + 255  # 白色背景
+
+    # 构造几组3D点对和颜色
+    cylinder_specs = [
+        (np.array([0, 0, 2]), np.array([0, 1, 2]), [1.0, 0.0, 0.0, 1.0]),  # 红色
+        (np.array([0, 0, 2]), np.array([1, 0, 2]), [0.0, 1.0, 0.0, 1.0]),  # 绿色
+        (np.array([0, 0, 2]), np.array([0, 0, 3]), [0.0, 0.0, 1.0, 1.0]),  # 蓝色
+    ]
+
+    # 简单的相机参数
+    fx, fy = 500, 500
+    cx, cy = W // 2, H // 2
+
+    # 调用渲染函数
+    img_pil = render_colored_cylinders(
+        cylinder_specs=cylinder_specs,
+        focal=(fx, fy),
+        princpt=(cx, cy),
+        image_size=(H, W),
+        img=img
+    )
+
+    # 显示或保存结果
+    img_pil.show()
+    # img_pil.save("test_render_cylinder.png")

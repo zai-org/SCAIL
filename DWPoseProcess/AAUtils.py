@@ -18,6 +18,8 @@ from fractions import Fraction
 import cv2
 import jsonlines
 import random
+import io
+
 
 
 def seed_everything(seed):
@@ -55,50 +57,50 @@ def delete_additional_ckpt(base_path, num_keep):
             shutil.rmtree(path_to_dir)
         
 
-def save_videos_from_pil(pil_images, path, fps=8):
-    if fps is None or fps <= 0 or fps > 240:
-        print(f"Warning: Invalid FPS {fps}")
-        return
+# def save_videos_from_pil(pil_images, path, fps=8):
+#     if fps is None or fps <= 0 or fps > 240:
+#         print(f"Warning: Invalid FPS {fps}")
+#         return
 
-    save_fmt = Path(path).suffix
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    width, height = pil_images[0].size
+#     save_fmt = Path(path).suffix
+#     os.makedirs(os.path.dirname(path), exist_ok=True)
+#     width, height = pil_images[0].size
 
-    if save_fmt == ".mp4":
-        try:
-            codec = "libx264"
-            container = av.open(path, "w")
-            stream = container.add_stream(codec, rate=fps)
+#     if save_fmt == ".mp4":
+#         try:
+#             codec = "libx264"
+#             container = av.open(path, "w")
+#             stream = container.add_stream(codec, rate=fps)
 
-            stream.width = width
-            stream.height = height
+#             stream.width = width
+#             stream.height = height
 
-            for pil_image in pil_images:
-                # pil_image = Image.fromarray(image_arr).convert("RGB")
-                av_frame = av.VideoFrame.from_image(pil_image)
-                container.mux(stream.encode(av_frame))
-            container.mux(stream.encode())
-            container.close()
-        except Exception as e:
-            print(f"Unexpected error while saving video {path}: {e}")
-            if os.path.exists(path):
-                try:
-                    os.remove(path)
-                    print(f"Corrupted file {path} removed successfully.")
-                except Exception as rm_e:
-                    print(f"Failed to remove corrupted file {path}: {rm_e}")
+#             for pil_image in pil_images:
+#                 # pil_image = Image.fromarray(image_arr).convert("RGB")
+#                 av_frame = av.VideoFrame.from_image(pil_image)
+#                 container.mux(stream.encode(av_frame))
+#             container.mux(stream.encode())
+#             container.close()
+#         except Exception as e:
+#             print(f"Unexpected error while saving video {path}: {e}")
+#             if os.path.exists(path):
+#                 try:
+#                     os.remove(path)
+#                     print(f"Corrupted file {path} removed successfully.")
+#                 except Exception as rm_e:
+#                     print(f"Failed to remove corrupted file {path}: {rm_e}")
 
-    elif save_fmt == ".gif":
-        pil_images[0].save(
-            fp=path,
-            format="GIF",
-            append_images=pil_images[1:],
-            save_all=True,
-            duration=(1 / fps * 1000),
-            loop=0,
-        )
-    else:
-        raise ValueError("Unsupported file type. Use .mp4 or .gif.")
+#     elif save_fmt == ".gif":
+#         pil_images[0].save(
+#             fp=path,
+#             format="GIF",
+#             append_images=pil_images[1:],
+#             save_all=True,
+#             duration=(1 / fps * 1000),
+#             loop=0,
+#         )
+#     else:
+#         raise ValueError("Unsupported file type. Use .mp4 or .gif.")
 
 
 def save_videos_grid(videos: torch.Tensor, path: str, rescale=False, n_rows=6, fps=8):
@@ -141,28 +143,6 @@ def read_frames(video_path):
     except Exception as e:
         print(f"Error reading frames from {video_path}: {e}")
         return None  # 返回 None 避免代码崩溃
-
-
-# pyav版本的
-# def read_frames(video_path):  
-#     start_time = time.time()  # 开始计时
-#     container = av.open(video_path)
-
-#     video_stream = next(s for s in container.streams if s.type == "video")
-#     frames = []
-#     for packet in container.demux(video_stream):
-#         for frame in packet.decode():
-#             image = Image.frombytes(
-#                 "RGB",
-#                 (frame.width, frame.height),
-#                 frame.to_rgb().to_ndarray(),
-#             )
-#             frames.append(image)
-
-#     end_time = time.time()  # 结束计时
-#     total_time = end_time - start_time
-#     print(f"Total time taken: {(end_time - start_time):.4f} seconds")
-#     return frames
 
 def get_fps(video_path):
 

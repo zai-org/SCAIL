@@ -159,7 +159,7 @@ def get_valid_indice_from_keypoints(ref_part_poses, ref_part_indices):
             valid_face_parts += 1
 
         if valid_face_parts >= 2:
-            valid_indice.append(indice)
+            valid_indice.append(int(indice))
     
     return valid_indice
     
@@ -192,7 +192,7 @@ def select_ref_from_keypoints_bbox_multi(ref_part_indices, ref_part_bboxes, bbox
                 driving_bbox_ok = False
                 break
         if driving_bbox_ok:
-            return ref_index
+            return int(ref_index)
         else:
             continue
     return None

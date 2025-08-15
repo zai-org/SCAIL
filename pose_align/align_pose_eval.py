@@ -29,21 +29,23 @@ def draw_keypoints_with_align(image_keypoints_path, video_keypoints_path, image_
     poses_image = torch.load(image_keypoints_path)[0]
     poses_video = torch.load(video_keypoints_path)
     poses = run_align_video(initial_frame.shape[0], initial_frame.shape[1], ref_frame.shape[0], ref_frame.shape[1], poses_image, poses_video)
-    canvas_lst = draw_pose_to_canvas(poses, pool=None, H=ref_frame.shape[0], W=ref_frame.shape[1], reshape_scale=0, points_only_flag=False, show_feet_flag=False, show_hand_flag=False, show_face_flag=False)
+    canvas_lst = draw_pose_to_canvas(poses, pool=None, H=ref_frame.shape[0], W=ref_frame.shape[1], reshape_scale=0, points_only_flag=False, show_feet_flag=False, show_hand_flag=False, show_face_flag=True, dw_bgr=False)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     save_videos_from_pil(canvas_lst, output_path, fps=fps)
 
 
 if __name__ == "__main__":
-    evaluation_dir = "/workspace/ywh_data/crossEval/cross_pair_eval100"
-    num_str_list = []
+    # evaluation_dir = "/workspace/ywh_data/crossEval/cross_pair_eval100"
+    # num_str_list = []
 
-    for i in range(1, 7):
-        num_str = f"toy{i}"
-        num_str_list.append(num_str)
-    for i in range(1, 100):
-        num_str = f"{i:03d}"
-        num_str_list.append(num_str)
+    # for i in range(1, 7):
+    #     num_str = f"toy{i}"
+    #     num_str_list.append(num_str)
+    # for i in range(1, 100):
+    #     num_str = f"{i:03d}"
+    #     num_str_list.append(num_str)
+    evaluation_dir = "/workspace/ywh_data/crossEval/long_test"
+    num_str_list = [""]
     for num_str in num_str_list:
         print(f"processing {num_str}")
         driving_name = os.listdir(os.path.join(evaluation_dir, num_str, "videos"))[0].replace(".mp4", "")

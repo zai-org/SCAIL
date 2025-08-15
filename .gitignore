@@ -2,3 +2,4 @@ pretrained_weights/
 *.pyc
 vscode/
 hypothesis/
+logs/

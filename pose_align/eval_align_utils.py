@@ -298,10 +298,22 @@ def get_align_args_and_offset(body_ref_img, body_1st_img, hands_ref_img, faces_r
     
     ratio = 0   
     count = 0
-    for i in range (68): 
-        if dict_1st_img[i] != 0:
+    # 如果有脸部，计算脸部的平均缩放比例
+    if np.sum(faces_ref_img[0] > 0) > 100:
+        print("有脸部: num = ", np.sum(faces_ref_img[0] != -1))
+        for i in range (68): 
+            if dict_1st_img[i] != 0:
+                ratio = ratio + dict_ref_img[i]/dict_1st_img[i]
+                count = count + 1
+    # 如果无脸部，按照body_1st_img来计算
+    else:
+        print("无脸部")
+        for i in range(14, 18):
+            dict_1st_img[i] = np.linalg.norm(body_1st_img[i]-body_1st_img[0])
+            dict_ref_img[i] = np.linalg.norm(body_ref_img[i]-body_ref_img[0])
             ratio = ratio + dict_ref_img[i]/dict_1st_img[i]
             count = count + 1
+
     if count!=0:
         align_args["scale_real_face"] = ratio / count
     else:
