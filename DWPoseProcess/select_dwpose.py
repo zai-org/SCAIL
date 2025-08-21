@@ -132,9 +132,10 @@ def load_config(config_path):
         config = yaml.safe_load(f)
     return config
 
-def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, slow_play_rate):
+def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, random_slow_play):
     meta_dict = {}
     obj_list = []
+    sample_list = []
     for _, wds_path in enumerate(wds_chunk):
         meta_file = wds_path.replace('.tar', '.meta.jsonl')
         meta_lines = open(meta_file).readlines()
@@ -155,7 +156,6 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
     dataloader = DataLoader(dataset, batch_size=1, num_workers=8, shuffle=False, prefetch_factor=8)
     data_iter = iter(dataloader)
 
-    shard_samples = []
     for data_batch in tqdm(data_iter):
         data = {}
         for k, v in data_batch.items():
@@ -181,6 +181,8 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
                     txt_data = f.read()
             else:
                 continue
+            with open(out_path_bbox, "rb") as f:
+                bbox_data = f.read()
 
             process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, height, width, multi_person)
             if process_result is None:
@@ -191,19 +193,16 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
             if obj is None:
                 print(f"skip {key}, no meta")
                 continue
-            if random.random() < slow_play_rate:
-                slow_play = True
-            else:
-                slow_play = False
-            obj.update({'motion_indices': final_motion_indices, 'ref_image_indices': final_ref_image_indices, 'slow_play': slow_play})
+            obj.update({'motion_indices': final_motion_indices, 'ref_image_indices': final_ref_image_indices, 'random_slow_play': random_slow_play})
             with open(out_path_mp4, "rb") as f:
                 mp4_data = f.read()
             data['dwpose'] = mp4_data
             data['recaption'] = txt_data
+            data['bbox'] = bbox_data
             data.pop('height', None)
             data.pop('width', None)
             data.pop('fps', None)
-            shard_samples.append(data)
+            sample_list.append(data)
             obj_list.append(obj)
             
         except Exception as e:
@@ -213,7 +212,7 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
     # 2) 分 shard
     chunk_size=100
     output_pattern = "%06d"
-    total_count = len(shard_samples)
+    total_count = len(obj_list)
     print(f"Total samples: {total_count}")
      # 计算分片数量 (可用 total_count // chunk_size)
     num_shards = math.ceil(total_count / chunk_size)
@@ -223,18 +222,18 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
     for shard_id in range(num_shards):
         start_idx = shard_id * chunk_size
         end_idx = min(start_idx + chunk_size, total_count)
-        shard_samples = shard_samples[start_idx:end_idx]
-        obj_samples = obj_list[start_idx:end_idx]
+        sample_shards = sample_list[start_idx:end_idx]
+        obj_shards = obj_list[start_idx:end_idx]
 
         shard_file = os.path.join(output_root, output_pattern % chunk_id + '_' + output_pattern % shard_id) + '.tar'
         jsonl_file = os.path.join(output_root, output_pattern % chunk_id + '_' + output_pattern % shard_id) + '.meta.jsonl'
 
         with TarWriter(shard_file) as writer:
-            for sample in shard_samples:
+            for sample in sample_shards:
                 writer.write(sample)
         with open(jsonl_file, 'w', encoding='utf-8') as outfile:
                 writer = jsonlines.Writer(outfile)
-                writer.write_all(obj_samples)
+                writer.write_all(obj_shards)
                 writer.close()
 
 if __name__ == "__main__":
@@ -252,7 +251,7 @@ if __name__ == "__main__":
     os.makedirs(output_root, exist_ok=True)
     tar_paths = [file for file in os.listdir(wds_root) if file.endswith('.tar')]
     video_root = config.get('video_root', '')
-    slow_play_rate = config.get('slow_play_rate', 0)
+    random_slow_play = config.get('random_slow_play', 0)
     name_args = config.get('name_args', {'keypoint_suffix_name': 'keypoints', 'bbox_suffix_name': 'bboxes', 'mp4_suffix_name': 'dwpose', 'caption_suffix_name': 'caption', 'caption_suffix_name_multi': 'caption_multi'})
 
     save_dir_keypoints = os.path.join(video_root, name_args['keypoint_suffix_name'])
@@ -299,13 +298,13 @@ if __name__ == "__main__":
     if current_chunk:
         chunks.append(current_chunk)
     # for chunk_idx, chunk in tqdm(enumerate(chunks), desc='Processing chunks', total=len(chunks)):
-    #     process_tar(chunk, chunk_idx, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, slow_play_rate)
+    #     process_tar(chunk, chunk_idx, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, random_slow_play)
     processes = []  # 存储进程的列表
     max_processes = 24  # 最大并发进程数
     for chunk_idx, chunk in tqdm(enumerate(chunks), desc='Processing chunks', total=len(chunks)):
         p = Process(
             target=process_tar,
-            args=(chunk, chunk_idx, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, slow_play_rate)
+            args=(chunk, chunk_idx, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, random_slow_play)
         )
         p.start()
         processes.append(p)

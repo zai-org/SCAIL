@@ -18,14 +18,18 @@ from tqdm import tqdm
 from functools import partial
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, ALL_COMPLETED, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, ALL_COMPLETED, TimeoutError, as_completed
+from AAUtils import read_frames
 from decord import VideoReader
 from fractions import Fraction
 import io
 import gc
 from PIL import Image
 from multiprocessing import Process
-
+import decord
+import json
+import glob
+import sys
 
 
 
@@ -54,7 +58,7 @@ def calculate_video_mean_and_std_pil(frames):
     return average_std, average_mean
 
 def process_single_video_with_timeout(*args, **kwargs):
-    timeout_seconds = 150
+    timeout_seconds = 180
 
     def task():
         process_single_video(*args, **kwargs)
@@ -69,9 +73,19 @@ def process_single_video_with_timeout(*args, **kwargs):
             print(f"处理视频出错：{str(e)}")
 
 
-def process_single_video(vr, detector, key, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args):
+def process_single_video(detector, key, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args):
     use_filter=filter_args['use_filter']
     save_mp4=filter_args['save_mp4']
+
+    try:
+        tmp_dir = "/dev/shm/tmp"
+        pt_path = os.path.join(tmp_dir, key + '.pt')
+        frames_tensor = torch.load(pt_path)
+        os.unlink(pt_path)
+    except Exception as e:
+        print(f"Load Tensor Failed: {str(e)}")
+        return
+
     multi_path =  os.path.join(video_root, 'labels_multi', key + '.txt')
     single_path = os.path.join(video_root, 'labels', key + '.txt')
     fail_path = os.path.join(video_root, 'labels_person_fail', key + '.txt')
@@ -86,19 +100,17 @@ def process_single_video(vr, detector, key, video_root, save_dir_keypoints, save
     # if not output_dir.exists():
     #     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # 使用 decord 打开视频
-    frames = []
     detector_return_list = []
     multi_person = True
     if os.path.exists(single_path):
         multi_person = False
 
     # 逐帧解码
-    for i in range(len(vr)):
-        frame = vr[i]  # 获取帧，返回的是 mx.ndarray
-        frame_pil = Image.fromarray(frame.asnumpy())  # 转换为 PIL 格式
-        frames.append(frame_pil)
-        detector_result = detector(frame_pil)
+    pil_frames = []
+    for i in range(len(frames_tensor)):
+        pil_frame = Image.fromarray(frames_tensor[i].numpy())
+        pil_frames.append(pil_frame)
+        detector_result = detector(pil_frame)
         _, _, det_result = detector_result
         if use_filter:
             if multi_person:
@@ -111,12 +123,13 @@ def process_single_video(vr, detector, key, video_root, save_dir_keypoints, save
         detector_return_list.append(detector_result)
 
 
-    W, H = frames[0].size
+    W, H = pil_frames[0].size
     
     if use_filter:
-        mean, std = calculate_video_mean_and_std_pil(frames)
+        mean, std = calculate_video_mean_and_std_pil(pil_frames)
         if mean < 30:
             return
+    del pil_frames
 
     if multi_person:
         if os.path.exists(multi_path):
@@ -128,94 +141,130 @@ def process_single_video(vr, detector, key, video_root, save_dir_keypoints, save
 
     poses, scores, det_results = zip(*detector_return_list) # 这里存的是整个视频的poses
     poses, det_results = human_select(poses, det_results, multi_person)
-    # 存raw poses
-    del frames
-    del detector_return_list  # 清理detector返回列表
 
     if save_mp4:
         mp4_results = draw_pose_to_canvas(poses, pool=None, H=H, W=W, reshape_scale=0, points_only_flag=False, show_feet_flag=False)
-        save_videos_from_pil(mp4_results, out_path_mp4, fps=16) # 实际可能不一致
-        del mp4_results  # 清理mp4结果
+        save_videos_from_pil(mp4_results, out_path_mp4, fps=16) # 实际可能fps不一致，需要视频fps存，这个是否会影响训练？
+        # 暂时不会 --> 因为视频训练时对视频取indice，frames和pose frames长度上必定一致
     
     torch.save(poses, out_path_keypoint)
     torch.save(det_results, out_path_bbox)
-    del poses, scores, det_results
 
-def process_fn_video(src):
+
+
+def process_fn_video(src, meta_dict=None, video_root=None, filter_args=None):
     worker_info = torch.utils.data.get_worker_info()
     for i, r in enumerate(src):
         if worker_info is not None:
             if i % worker_info.num_workers != worker_info.id:
                 continue
-        yield r
+        meta = meta_dict.get(r['__key__'], None)
+        if meta is None:
+            print(f"skip {r['__key__']}, no meta")
+            continue
+        r.update(meta)
+        ori_meta = meta.get('ori_meta', {})
+        if isinstance(ori_meta, dict):
+            r.update(ori_meta)
+        key = r['__key__']
+
+        if os.path.exists(os.path.join(video_root, 'labels', key + '.txt')) or os.path.exists(os.path.join(video_root, 'labels_multi', key + '.txt')) or os.path.exists(os.path.join(video_root, 'labels_person_fail', key + '.txt')):
+            if filter_args['use_fail_prompt'] == False:
+                if os.path.exists(os.path.join(video_root, 'labels_person_fail', key + '.txt')):
+                    continue
+            mp4_bytes = r.get("mp4", None)
+            h = r.get('height', None)
+            w = r.get('width', None)
+            fps = r.get('fps', None)
+            if mp4_bytes is None or h is None or w is None or fps is None:
+                continue
+            else:
+                try:
+                    decord.bridge.set_bridge("torch")
+                    tmp_dir = "/dev/shm/tmp"
+
+                    vr = VideoReader(io.BytesIO(mp4_bytes))
+                    vr_len = len(vr)
+                    if vr_len / fps > 16 or vr_len > 1000:   # 视频过长
+                        del vr
+                        continue
+                    frame_indices = list(range(vr_len))
+                    frames = vr.get_batch(frame_indices)
+                    frames = torch.from_numpy(frames) if type(frames) is not torch.Tensor else frames
+                    torch.save(frames, os.path.join(tmp_dir, key + '.pt'))
+                    del vr
+                except Exception as e:
+                    print(e)
+                    print('load video error: ', key)
+                    continue
+                item = {'__key__': key, 'height': h, 'width': w}
+                yield item
+        else:
+            continue
+        
+        
 
 def load_config(config_path):
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     return config
 
-def process_tar(wds_list, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args):
-    local_rank = int(os.getenv('LOCAL_RANK', 0))
-    
-    detector = DWposeDetector(use_batch=False)
-    detector = detector.to(local_rank%8)
+def gpu_worker(gpu_id, task_queue, video_root, save_dir_keypoints, save_dir_bboxes,
+               save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args, max_detector_threads):
+    detector = DWposeDetector(use_batch=False).to(gpu_id)
+    futures = set()
 
-    dataset = wds.DataPipeline(
-        wds.SimpleShardList(wds_list, seed=None),
-        wds.tarfile_to_samples(),
-        partial(process_fn_video)
-    )
-    max_workers = 4
-    dataloader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=False, prefetch_factor=2)
-    data_iter = iter(dataloader)
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = set()
-        for data_batch in tqdm(data_iter):
-            data = {}
-            for k, v in data_batch.items():
-                data[k] = v[0]
+    def process_task(task_queue, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args):
+        while True:
+            key = task_queue.get()
+            if key is None:
+                break
             try:
-                key = data['__key__']
-                if os.path.exists(os.path.join(video_root, 'labels', key + '.txt')) or os.path.exists(os.path.join(video_root, 'labels_multi', key + '.txt')) or os.path.exists(os.path.join(video_root, 'labels_person_fail', key + '.txt')):
-                    if filter_args['use_fail_prompt'] == False:
-                        if os.path.exists(os.path.join(video_root, 'labels_person_fail', key + '.txt')):
-                            continue
-
-                    vr = VideoReader(io.BytesIO(data['mp4']))
-                    process_single_video_with_timeout(vr, detector, key, video_root,
-                                                        save_dir_keypoints, save_dir_bboxes,
-                                                        save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args)
-                del data
-                future = executor.submit(
-                    process_single_video_with_timeout,
-                    vr, detector, key, video_root,
+                process_single_video_with_timeout(
+                    detector, key, video_root,
                     save_dir_keypoints, save_dir_bboxes,
                     save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args
                 )
-                futures.add(future)
-
-                # 如果任务太多，就等到至少有一个完成，相当于pop(0)，但是这个pop的是最先完成的，气泡更少
-                if len(futures) >= max_workers:
-                    done, futures = wait(futures, return_when=FIRST_COMPLETED)  # 更新futures为未完成的
-                    for f in done:
-                        try:
-                            f.result()
-                        except Exception as e:
-                            print(f"Task failed: {e}")
-
-            except Exception as e:
-                print(f"Error processing video {key}: {e}")
-                continue
-
-        # 等剩下的全部完成
-        for f in futures:
-            try:
-                f.result()
             except Exception as e:
                 print(f"Task failed: {e}")
-    
 
+    with ThreadPoolExecutor(max_workers=max_detector_threads) as executor:
+        for _ in range(max_detector_threads):
+            futures.add(executor.submit(process_task, task_queue, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args))
+        for future in futures:
+            future.result()
+
+def process_tar(wds_path, task_queue, video_root, filter_args):
+    meta_dict = {}
+    meta_file = wds_path.replace('.tar', '.meta.jsonl')
+    meta_lines = open(meta_file).readlines()
+    for meta_line in meta_lines:
+        meta_line = meta_line.strip()
+        try:
+            meta = json.loads(meta_line)
+        except Exception as e:
+            print(e)
+            print('json load error: ', meta_file)
+            continue
+        meta_dict[meta['key']] = meta
+
+    dataset = wds.DataPipeline(
+        wds.SimpleShardList(wds_path, seed=None),
+        wds.tarfile_to_samples(),
+        partial(process_fn_video, meta_dict=meta_dict, video_root=video_root, filter_args=filter_args),
+    )
+
+    dataloader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=False, prefetch_factor=2, collate_fn=lambda b: b[0])
+    for data_batch in dataloader:
+        key = data_batch['__key__']
+        task_queue.put(key)
+
+def producer_worker_wds(tar_paths, task_queue, video_root, filter_args):
+    for _, tar_path in tqdm(enumerate(tar_paths), desc="Processing tar files", total=len(tar_paths)):
+        process_tar(tar_path, task_queue, video_root, filter_args)
+        gc.collect()
+            
+        
 if __name__ == "__main__":
     import argparse
 
@@ -233,76 +282,47 @@ if __name__ == "__main__":
     world_size = int(os.getenv('WORLD_SIZE', 1))
     rank = int(os.getenv('RANK', 0))
     local_rank = int(os.getenv('LOCAL_RANK', 0))
-    device = torch.device(f'cuda:{local_rank%8}')
 
     wds_root = config.get('wds_root', '')
-    tar_paths = [file for file in os.listdir(wds_root) if file.endswith('.tar')]
-    tar_paths = tar_paths[rank::world_size]
     video_root = config.get('video_root', '')
     filter_args = config.get('filter_args', {})
+    max_detector_threads = config.get('max_detector_threads', 8)
     name_args = config.get('name_args', {'keypoint_suffix_name': 'keypoints', 'bbox_suffix_name': 'bboxes', 'mp4_suffix_name': 'dwpose', 'caption_suffix_name': 'caption', 'caption_suffix_name_multi': 'caption_multi'})
+    tar_paths = glob.glob(os.path.join(wds_root, "**", "*.tar"), recursive=True)
 
     save_dir_keypoints = os.path.join(video_root, name_args['keypoint_suffix_name'])
     save_dir_bboxes = os.path.join(video_root, name_args['bbox_suffix_name'])
     save_dir_mp4 = os.path.join(video_root, name_args['mp4_suffix_name'])
     save_dir_caption = os.path.join(video_root, name_args['caption_suffix_name'])
     save_dir_caption_multi = os.path.join(video_root, name_args['caption_suffix_name_multi'])
+    tmp_dir = os.path.join("/dev/shm/tmp")
 
     os.makedirs(save_dir_keypoints, exist_ok=True)
     os.makedirs(save_dir_bboxes, exist_ok=True)
     os.makedirs(save_dir_mp4, exist_ok=True)
     os.makedirs(save_dir_caption, exist_ok=True)
     os.makedirs(save_dir_caption_multi, exist_ok=True)
+    os.makedirs(tmp_dir, exist_ok=True)
 
-    wds_list = [os.path.join(wds_root, file) for file in tar_paths]
-    # 分chunk
-    max_items_per_chunk = 300
-    chunks = []
-    current_chunk = []
-    current_count = 0
 
-    # 先统计每个 wds_path 对应的 item 数
-    wds_info = []
-    for wds_path in wds_list:
-        meta_file = wds_path.replace('.tar', '.meta.jsonl')
-        item_num = sum(1 for _ in open(meta_file))
-        wds_info.append((wds_path, item_num))
+    # 建立 task queue
+    task_queue = multiprocessing.Queue(maxsize=max_detector_threads*4)
+    # 启动 GPU worker
+    processes = []
+    producer_processes = []
 
-    # 分 chunk
-    for path, count in wds_info:
-        if count > max_items_per_chunk:
-            chunks.append([path])
-            continue
+    p = multiprocessing.Process(target=gpu_worker, args=(local_rank, task_queue, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args, max_detector_threads))
+    p.start()
 
-        if current_count + count <= max_items_per_chunk:
-            current_chunk.append(path)
-            current_count += count
-        else:
-            chunks.append(current_chunk)
-            current_chunk = [path]
-            current_count = count
+    # 生产者进程（mp4/wds）
+    tar_shard = tar_paths[rank::world_size]
+    random.shuffle(tar_shard)
+    producer_worker_wds(tar_shard, task_queue, video_root, filter_args)
 
-    # 把最后一个 chunk 加进去
-    if current_chunk:
-        chunks.append(current_chunk)
+    task_queue.put(None)  # 发送结束标记
+    p.join()
 
-    processes = []  # 存储进程的列表
-    max_processes = 4  # 最大并发进程数
-    for chunk_idx, chunk in tqdm(enumerate(chunks), desc='Processing chunks', total=len(chunks)):
-        p = Process(
-            target=process_tar,
-            args=(chunk, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args)
-        )
-        p.start()
-        processes.append(p)
-        if len(processes) >= max_processes:
-            processes[0].join()
-            processes.pop(0)
-            gc.collect()
-
-    for p in processes:
-        p.join()
-        gc.collect()
+    
     
 
 

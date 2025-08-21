@@ -129,7 +129,7 @@ def save_videos_grid(videos: torch.Tensor, path: str, rescale=False, n_rows=6, f
 def read_frames(video_path):
     try:
         # 使用 decord 打开视频
-        vr = VideoReader(video_path, ctx=cpu(0))
+        vr = VideoReader(video_path)
         frames = []
 
         # 逐帧解码
