@@ -222,8 +222,8 @@ def check_from_keypoints_bbox(keypoints, bboxs, IoU_thresthold, reference_width,
 
 def check_from_keypoints_stick_movement(keypoints, angle_threshold):
     # 骨骼选择：列表中每个元组表示由两个关节确定一条骨骼：格式 (joint_a, joint_b)
-    bones = [(1, 0), (1, 2), (1, 5), (1, 8), (1, 11)]
-
+    # bones = [(1, 0), (1, 2), (1, 5), (1, 8), (1, 11)]
+    bones = [(1, 0), (1, 2), (1, 5), (1, 8), (1, 11), (2, 3), (5, 6), (8, 9), (11, 12)]
     max_delta_list = []
     # 遍历从第二帧开始，对比前一帧和当前帧
     human_num_list = [len(keypoints[idx]["bodies"]["candidate"]) for idx in range(0, len(keypoints))]
@@ -266,7 +266,7 @@ def check_from_keypoints_stick_movement(keypoints, angle_threshold):
                 max_delta = max(delta, max_delta)
             max_delta_list.append(max_delta)
         max_delta_list = sorted(max_delta_list)
-        max_delta_list = max_delta_list[8:-8] # 去掉两端8个最大值和最小值
+        max_delta_list = max_delta_list[len(max_delta_list)//8:-len(max_delta_list)//8] # 去掉两端8分之一的值
         avg_movement = sum(max_delta_list) / len(max_delta_list)
         if avg_movement < angle_threshold:  # 筛去过小的动作
             return False

@@ -185,7 +185,7 @@ def process_fn_video(src, meta_dict=None, video_root=None, filter_args=None):
 
                     vr = VideoReader(io.BytesIO(mp4_bytes))
                     vr_len = len(vr)
-                    if vr_len / fps > 16 or vr_len > 1000:   # 视频过长
+                    if vr_len / fps > 24 or vr_len > 1000:   # 视频过长
                         del vr
                         continue
                     frame_indices = list(range(vr_len))
@@ -234,7 +234,7 @@ def gpu_worker(gpu_id, task_queue, video_root, save_dir_keypoints, save_dir_bbox
         for future in futures:
             future.result()
 
-def process_tar(wds_path, task_queue, video_root, filter_args):
+def process_tar(wds_path, task_queue, video_root, filter_args, total_count):
     meta_dict = {}
     meta_file = wds_path.replace('.tar', '.meta.jsonl')
     meta_lines = open(meta_file).readlines()
@@ -258,11 +258,20 @@ def process_tar(wds_path, task_queue, video_root, filter_args):
     for data_batch in dataloader:
         key = data_batch['__key__']
         task_queue.put(key)
+        total_count += 1
 
-def producer_worker_wds(tar_paths, task_queue, video_root, filter_args):
+    return total_count
+
+def producer_worker_wds(tar_paths, task_queue, video_root, filter_args, max_samples_per_gpu):
+    total_count = 0
     for _, tar_path in tqdm(enumerate(tar_paths), desc="Processing tar files", total=len(tar_paths)):
-        process_tar(tar_path, task_queue, video_root, filter_args)
+        total_count = process_tar(tar_path, task_queue, video_root, filter_args, total_count)
+        if total_count > max_samples_per_gpu:
+            break
+        else:
+            print(f"Has Processed Total count: {total_count}")
         gc.collect()
+    gc.collect()
             
         
 if __name__ == "__main__":
@@ -289,6 +298,7 @@ if __name__ == "__main__":
     max_detector_threads = config.get('max_detector_threads', 8)
     name_args = config.get('name_args', {'keypoint_suffix_name': 'keypoints', 'bbox_suffix_name': 'bboxes', 'mp4_suffix_name': 'dwpose', 'caption_suffix_name': 'caption', 'caption_suffix_name_multi': 'caption_multi'})
     tar_paths = glob.glob(os.path.join(wds_root, "**", "*.tar"), recursive=True)
+    max_samples_per_gpu = config.get('max_samples_per_gpu', 1000000)
 
     save_dir_keypoints = os.path.join(video_root, name_args['keypoint_suffix_name'])
     save_dir_bboxes = os.path.join(video_root, name_args['bbox_suffix_name'])
@@ -317,17 +327,15 @@ if __name__ == "__main__":
     # 生产者进程（mp4/wds）
     tar_shard = tar_paths[rank::world_size]
     random.shuffle(tar_shard)
-    producer_worker_wds(tar_shard, task_queue, video_root, filter_args)
+    producer_worker_wds(tar_shard, task_queue, video_root, filter_args, max_samples_per_gpu)
 
-    task_queue.put(None)  # 发送结束标记
-    p.join()
-
+    for _ in range(max_detector_threads):
+        task_queue.put(None)  # 发送结束标记
     
-    
-
-
-
-
-
+    # 此时队列里应该最多有32个要处理，理论上几分钟可以处理完
+    p.join(timeout=6000)  # 等待2h，确保消费、销毁完成
+    if p.is_alive():
+        print("警告：GPU worker进程未在预期时间内结束")
+        p.terminate()
 
     
