@@ -28,30 +28,33 @@ class DWposeDetector:
         self.pose_estimation = Wholebody(device, self.use_batch)
         return self
 
-    def _get_multi_result_from_est(self, candidate, subset, det_result, H, W):
+    def _get_multi_result_from_est(self, candidate, score_result, det_result, H, W):
         nums, keys, locs = candidate.shape  # n 所有身体关键点数量，坐标
         candidate[..., 0] /= float(W)
         candidate[..., 1] /= float(H)
-        score = subset[:, :24]              # 前18个是躯干骨骼  score(n, 18)
-        body_candidate = candidate[:, :24].copy()     # body(n, 24, 2)
-        body_score = copy.deepcopy(score)       # 已经去过max_ind
-        for i in range(len(score)):  # n 个
-            for j in range(len(score[i])):
-                if score[i][j] > 0.3:
-                    score[i][j] = j
-                else:
-                    score[i][j] = -1    # 躯干中去除掉不可见的骨骼
+        subset_score = score_result[:, :24]              # 按照24个骨骼关键点来区分可见位置
+        face_score = score_result[:, 24:92]
+        hand_score = score_result[:, 92:113]
+        hand_score = np.vstack([hand_score, score_result[:, 113:]])
 
-        un_visible = subset < 0.3       
+        body_candidate = candidate[:, :24].copy()     # body(n, 24, 2)
+        for i in range(len(subset_score)):  # n 个
+            for j in range(len(subset_score[i])):
+                if subset_score[i][j] > 0.3:
+                    subset_score[i][j] = j      # 标注序号，这样后续用的时候可以快速查出可用点
+                else:
+                    subset_score[i][j] = -1    # 躯干中去除掉不可见的骨骼
+
+        un_visible = score_result < 0.3       
         candidate[un_visible] = -1      # 全部关键点中去掉不可见骨骼
 
         faces = candidate[:, 24:92]
-
         hands = candidate[:, 92:113]    # hands(2*n, 21, 2)
-        hands = np.vstack([hands, candidate[:, 113:]])  # 
+        hands = np.vstack([hands, candidate[:, 113:]]) 
 
-        bodies = dict(candidate=body_candidate, subset=score)
+        bodies = dict(candidate=body_candidate, subset=subset_score)
         pose = dict(bodies=bodies, hands=hands, faces=faces)
+        score = dict(body_score=subset_score, hand_score=hand_score, face_score=face_score)
 
         new_det_result = []
         for bbox in det_result:
@@ -63,7 +66,7 @@ class DWposeDetector:
             new_bbox = [new_x1, new_y1, new_x2, new_y2]
             new_det_result.append(new_bbox)
 
-        return pose, body_score, new_det_result     # body_score是原始的躯干骨骼分数
+        return pose, score, new_det_result     # body_score是原始的躯干骨骼分数
 
     # def _get_result_from_est(self, input_image, candidate, subset, det_result, image_resolution, output_type, H, W):
     #     nums, keys, locs = candidate.shape
