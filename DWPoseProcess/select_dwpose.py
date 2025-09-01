@@ -29,17 +29,23 @@ from multiprocessing import Process
 import json
 import jsonlines
 from webdataset import TarWriter
+import math
+import glob
 
 
-def process_video_to_indices(keypoint_path, bbox_path, height, width, multi_person):
-    poses = torch.load(keypoint_path)
-    bboxes = torch.load(bbox_path)
+def process_video_to_indices(keypoint_path, bbox_path, height, width, fps, multi_person):   # TODO: 还是修改一下，16fps的interval在这里就可以取了
+    ori_poses = torch.load(keypoint_path, weights_only=False)
+    ori_bboxes = torch.load(bbox_path, weights_only=False)
+    target_fps = 16
 
     H, W = height, width
     max_slide_attempts = 30
     start_index = 8
     # 定义可选的 motion_part_len 值
-    possible_lengths = [60, 75, 90, 100, 110, 135, 150, 180, 210, 250]
+    possible_lengths = [49, 57, 65, 75, 81, 90, 100, 110, 135, 150, 180, 210, 240]
+    pick_indices = np.arange(0, len(ori_poses), fps / target_fps).astype(int)  # 比如orilist 0-10， downsample成 newlist [0 2 4 6 8], 那么newlist[1] 对应原来 orilist[2]，直接用即可
+    poses = [ori_poses[index] for index in pick_indices]
+    bboxes = [ori_bboxes[index] for index in pick_indices]
     valid_lengths = [length for length in possible_lengths if length < len(poses) - 1]
     valid_lengths.sort(reverse=True)
 
@@ -47,7 +53,7 @@ def process_video_to_indices(keypoint_path, bbox_path, height, width, multi_pers
     final_motion_indices = None
 
     for motion_part_len in valid_lengths:
-        for attempt in range(max_slide_attempts):
+        for _ in range(max_slide_attempts):
             end = int(start_index + motion_part_len)
             if end >= len(poses):
                 start_index -= 2    # 如果走太多就先后退一步
@@ -74,13 +80,13 @@ def process_video_to_indices(keypoint_path, bbox_path, height, width, multi_pers
                     if final_ref_image_indice is None:
                         start_index += random.randint(3, 4)
                         continue
-                    delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.03)
+                    delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.05)
                     if not delta_check_result:
                         start_index += random.randint(3, 4)
                         continue
                     final_ref_image_indices = [final_ref_image_indice]
                 else:
-                    delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.03)
+                    delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.06)
                     if not delta_check_result:
                         start_index += random.randint(3, 4)
                         continue
@@ -95,6 +101,8 @@ def process_video_to_indices(keypoint_path, bbox_path, height, width, multi_pers
         if final_motion_indices is None:
             continue
         else:
+            final_motion_indices = [int(pick_indices[idx]) for idx in final_motion_indices]
+            final_ref_image_indices = [int(pick_indices[idx]) for idx in final_ref_image_indices]
             return final_motion_indices, final_ref_image_indices
     return None
 
@@ -132,11 +140,14 @@ def load_config(config_path):
         config = yaml.safe_load(f)
     return config
 
-def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, random_slow_play):
-    meta_dict = {}
+def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args):
     obj_list = []
     sample_list = []
-    for _, wds_path in enumerate(wds_chunk):
+    shard_size = 100
+    shard_id = 0
+    output_pattern = "%06d"
+    for _, wds_path in tqdm(enumerate(wds_chunk), desc=f"process chunk {chunk_id}\n", total=len(wds_chunk)):
+        meta_dict = {}
         meta_file = wds_path.replace('.tar', '.meta.jsonl')
         meta_lines = open(meta_file).readlines()
         for meta_line in meta_lines:
@@ -148,93 +159,115 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
                 print('json load error: ', meta_file)
                 continue
             meta_dict[meta['key']] = meta
-    dataset = wds.DataPipeline(
-        wds.SimpleShardList(wds_chunk, seed=None),
-        wds.tarfile_to_samples(),
-        partial(process_fn_video, meta_dict=meta_dict),
-    )
-    dataloader = DataLoader(dataset, batch_size=1, num_workers=8, shuffle=False, prefetch_factor=8)
-    data_iter = iter(dataloader)
+        dataset = wds.DataPipeline(
+            wds.SimpleShardList(wds_path, seed=None),
+            wds.tarfile_to_samples(),
+            partial(process_fn_video, meta_dict=meta_dict),
+        )
+        dataloader = DataLoader(dataset, batch_size=1, num_workers=8, shuffle=False)
+        data_iter = iter(dataloader)
 
-    for data_batch in tqdm(data_iter):
-        data = {}
-        for k, v in data_batch.items():
-            data[k] = v[0]
-        try:
-            key = data['__key__']
-            height = data.get('height', None)
-            width = data.get('width', None)
-            multi_path = os.path.join(save_dir_caption_multi, key + '.txt')
-            single_path = os.path.join(save_dir_caption, key + '.txt')
+        for data_batch in data_iter:
+            data = {}
+            for k, v in data_batch.items():
+                data[k] = v[0]
+            try:
+                key = data['__key__']
+                height = data.get('height', None)
+                width = data.get('width', None)
+                fps = data.get('fps', None)
+                multi_path = os.path.join(save_dir_caption_multi, key + '.txt')
+                single_path = os.path.join(save_dir_caption, key + '.txt')
 
-            out_path_keypoint = os.path.join(save_dir_keypoints, key + '.pt')
-            out_path_bbox = os.path.join(save_dir_bboxes, key + '.pt')
-            out_path_mp4 = os.path.join(save_dir_mp4, key + '.mp4')
+                out_path_keypoint = os.path.join(save_dir_keypoints, key + '.pt')
+                out_path_bbox = os.path.join(save_dir_bboxes, key + '.pt')
+                out_path_hands = os.path.join(save_dir_hands, key + '.pt')
+                out_path_faces = os.path.join(save_dir_faces, key + '.pt')
+                out_path_mp4 = os.path.join(save_dir_dwpose_mp4, key + '.mp4')
 
-            if os.path.exists(multi_path):
-                multi_person = True
-                with open(multi_path, "r", encoding="utf-8") as f:
-                    txt_data = f.read()
-            elif os.path.exists(single_path):
-                multi_person = False
-                with open(single_path, "r", encoding="utf-8") as f:
-                    txt_data = f.read()
-            else:
-                continue
-            with open(out_path_bbox, "rb") as f:
-                bbox_data = f.read()
+                if os.path.exists(multi_path):
+                    multi_person = True
+                    with open(multi_path, "r", encoding="utf-8") as f:
+                        txt_data = f.read()
+                elif os.path.exists(single_path):
+                    multi_person = False
+                    with open(single_path, "r", encoding="utf-8") as f:
+                        txt_data = f.read()
+                else:
+                    continue
+                if os.path.exists(out_path_bbox) and os.path.exists(out_path_hands) and os.path.exists(out_path_faces):
+                    pass
+                else:
+                    continue
+                with open(out_path_bbox, "rb") as f:
+                    bbox_data = f.read()
+                with open(out_path_hands, "rb") as f:
+                    hands_data = f.read()
+                with open(out_path_faces, "rb") as f:
+                    faces_data = f.read()
 
-            process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, height, width, multi_person)
-            if process_result is None:
-                continue
-            else:
+                if filter_args is None or filter_args.get('use_filter', False) == True:
+                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, height, width, fps, multi_person)              
+                    if process_result is None:
+                        continue
+                elif filter_args.get('use_filter', False) == False:
+                    process_result = (list(range(81)), [0])
+
                 final_motion_indices, final_ref_image_indices = process_result
-            obj = meta_dict.get(key, None)
-            if obj is None:
-                print(f"skip {key}, no meta")
-                continue
-            obj.update({'motion_indices': final_motion_indices, 'ref_image_indices': final_ref_image_indices, 'random_slow_play': random_slow_play})
-            with open(out_path_mp4, "rb") as f:
-                mp4_data = f.read()
-            data['dwpose'] = mp4_data
-            data['recaption'] = txt_data
-            data['bbox'] = bbox_data
-            data.pop('height', None)
-            data.pop('width', None)
-            data.pop('fps', None)
-            sample_list.append(data)
-            obj_list.append(obj)
+                obj = meta_dict.get(key, None)
+                if obj is None:
+                    print(f"skip {key}, no meta")
+                    continue
+                obj.update({'motion_indices': final_motion_indices, 'ref_image_indices': final_ref_image_indices})
+                with open(out_path_mp4, "rb") as f:
+                    mp4_data = f.read()
+                data['dwpose'] = mp4_data
+                data['recaption'] = txt_data
+                data['bbox'] = bbox_data
+                data['hands'] = hands_data
+                data['faces'] = faces_data
+                data.pop('height', None)
+                data.pop('width', None)
+                data.pop('fps', None)
+                sample_list.append(data)
+                obj_list.append(obj)
+                
+                # Write shard when it reaches the target size
+                if len(sample_list) >= shard_size:
+                    shard_file = os.path.join(output_root, output_pattern % chunk_id + '_' + output_pattern % shard_id) + '.tar'
+                    jsonl_file = os.path.join(output_root, output_pattern % chunk_id + '_' + output_pattern % shard_id) + '.meta.jsonl'
+                    
+                    with TarWriter(shard_file) as writer:
+                        for sample in sample_list:
+                            writer.write(sample)
+                    with open(jsonl_file, 'w', encoding='utf-8') as outfile:
+                        writer = jsonlines.Writer(outfile)
+                        writer.write_all(obj_list)
+                        writer.close()
+                    
+                    print(f"Written shard {shard_id} with {len(sample_list)} samples")
+                    sample_list = []
+                    obj_list = []
+                    shard_id += 1
             
-        except Exception as e:
-            print(f"Error processing video {key}: {e}")
-            continue
+            except Exception as e:
+                print(f"Error processing video {key}: {e}")
+                continue
 
-    # 2) 分 shard
-    chunk_size=100
-    output_pattern = "%06d"
-    total_count = len(obj_list)
-    print(f"Total samples: {total_count}")
-     # 计算分片数量 (可用 total_count // chunk_size)
-    num_shards = math.ceil(total_count / chunk_size)
-    print(f"Will produce {num_shards} shards, each up to {chunk_size} samples")
-
-    # 3) 对分好的shard进行处理
-    for shard_id in range(num_shards):
-        start_idx = shard_id * chunk_size
-        end_idx = min(start_idx + chunk_size, total_count)
-        sample_shards = sample_list[start_idx:end_idx]
-        obj_shards = obj_list[start_idx:end_idx]
-
+    # Write remaining samples if any
+    if len(sample_list) > 0:
         shard_file = os.path.join(output_root, output_pattern % chunk_id + '_' + output_pattern % shard_id) + '.tar'
         jsonl_file = os.path.join(output_root, output_pattern % chunk_id + '_' + output_pattern % shard_id) + '.meta.jsonl'
-
+        
         with TarWriter(shard_file) as writer:
-            for sample in sample_shards:
+            for sample in sample_list:
                 writer.write(sample)
         with open(jsonl_file, 'w', encoding='utf-8') as outfile:
-                writer = jsonlines.Writer(outfile)
-                writer.write_all(obj_shards)
-                writer.close()
+            writer = jsonlines.Writer(outfile)
+            writer.write_all(obj_list)
+            writer.close()
+        
+        print(f"Written final shard {shard_id} with {len(sample_list)} samples")
 
 if __name__ == "__main__":
     import argparse
@@ -247,71 +280,46 @@ if __name__ == "__main__":
     config = load_config(args.config)
 
     wds_root = config.get('wds_root', '')
-    output_root = config.get('output_root', '')
-    os.makedirs(output_root, exist_ok=True)
-    tar_paths = [file for file in os.listdir(wds_root) if file.endswith('.tar')]
+    tar_paths = glob.glob(os.path.join(wds_root, "**", "*.tar"), recursive=True)
     video_root = config.get('video_root', '')
-    random_slow_play = config.get('random_slow_play', 0)
-    name_args = config.get('name_args', {'keypoint_suffix_name': 'keypoints', 'bbox_suffix_name': 'bboxes', 'mp4_suffix_name': 'dwpose', 'caption_suffix_name': 'caption', 'caption_suffix_name_multi': 'caption_multi'})
+    filter_args = config.get('filter_args', None)
+    output_root = os.path.join("/workspace/ywh_data/pose_packed_wds_0901", os.path.basename(os.path.normpath(video_root)))
+    os.makedirs(output_root, exist_ok=True)
 
-    save_dir_keypoints = os.path.join(video_root, name_args['keypoint_suffix_name'])
-    save_dir_bboxes = os.path.join(video_root, name_args['bbox_suffix_name'])
-    save_dir_mp4 = os.path.join(video_root, name_args['mp4_suffix_name'])
-    save_dir_caption = os.path.join(video_root, name_args['caption_suffix_name'])
-    save_dir_caption_multi = os.path.join(video_root, name_args['caption_suffix_name_multi'])
+    save_dir_keypoints = os.path.join(video_root, 'keypoints')
+    save_dir_bboxes = os.path.join(video_root, 'bboxes')
+    save_dir_dwpose_mp4 = os.path.join(video_root, 'dwpose')
+    save_dir_hands = os.path.join(video_root, 'hands')
+    save_dir_faces = os.path.join(video_root, 'faces')
+    save_dir_caption = os.path.join(video_root, 'caption')
+    save_dir_caption_multi = os.path.join(video_root, 'caption_multi')
 
     os.makedirs(save_dir_keypoints, exist_ok=True)
     os.makedirs(save_dir_bboxes, exist_ok=True)
-    os.makedirs(save_dir_mp4, exist_ok=True)
+    os.makedirs(save_dir_dwpose_mp4, exist_ok=True)
+    os.makedirs(save_dir_hands, exist_ok=True)
+    os.makedirs(save_dir_faces, exist_ok=True)
     os.makedirs(save_dir_caption, exist_ok=True)
     os.makedirs(save_dir_caption_multi, exist_ok=True)
 
-    wds_list = [os.path.join(wds_root, file) for file in tar_paths]
-    # 分chunk
-    max_items_per_chunk = 2500
-    chunks = []
-    current_chunk = []
-    current_count = 0
 
-    # 先统计每个 wds_path 对应的 item 数
-    wds_info = []
-    for wds_path in wds_list:
-        meta_file = wds_path.replace('.tar', '.meta.jsonl')
-        item_num = sum(1 for _ in open(meta_file))
-        wds_info.append((wds_path, item_num))
-
-    # 分 chunk
-    for path, count in wds_info:
-        if count > max_items_per_chunk:
-            chunks.append([path])
-            continue
-
-        if current_count + count <= max_items_per_chunk:
-            current_chunk.append(path)
-            current_count += count
-        else:
-            chunks.append(current_chunk)
-            current_chunk = [path]
-            current_count = count
-        
-    # 把最后一个 chunk 加进去
-    if current_chunk:
-        chunks.append(current_chunk)
-    # for chunk_idx, chunk in tqdm(enumerate(chunks), desc='Processing chunks', total=len(chunks)):
-    #     process_tar(chunk, chunk_idx, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, random_slow_play)
     processes = []  # 存储进程的列表
-    max_processes = 24  # 最大并发进程数
-    for chunk_idx, chunk in tqdm(enumerate(chunks), desc='Processing chunks', total=len(chunks)):
+    max_processes = 8  # 最大并发进程数
+
+    # Split wds_list into chunks
+    random.shuffle(tar_paths)
+    chunk_size = len(tar_paths) // max_processes
+    if len(tar_paths) % max_processes != 0:
+        chunk_size += 1
+    chunks = [tar_paths[i:i + chunk_size] for i in range(0, len(tar_paths), chunk_size)]
+    
+    for chunk_idx, chunk in enumerate(chunks):
         p = Process(
             target=process_tar,
-            args=(chunk, chunk_idx, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, random_slow_play)
+            args=(chunk, chunk_idx, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args)
         )
         p.start()
         processes.append(p)
-        if len(processes) >= max_processes:
-            processes[0].join()
-            processes.pop(0)
-            gc.collect()
 
     for p in processes:
         p.join()

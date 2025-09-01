@@ -31,7 +31,29 @@ import json
 import glob
 import sys
 
+def get_bbox_from_position_list(position_list):
+    # 输入list of xy (x y 0-1), 输出bbox (x1 y1 x2 y2)
+    x_list = [xy[0] for xy in position_list]
+    y_list = [xy[1] for xy in position_list]
+    x1 = min(x_list)
+    y1 = min(y_list)
+    x2 = max(x_list)
+    y2 = max(y_list)
+    return x1, y1, x2, y2
 
+
+def convert_scores_to_specific_bboxes(poses, scores, type='hands', score_type='hand_score', score_threshold=0.75):
+    # 输入scores, a list of dict, 每个dict包含body_score, hand_score, face_score, body_score是[n, 24]的矩阵，hand_score是[2*n, 21]的矩阵，face_score是[n, 68]的矩阵
+    # 如果平均值>0.3，再根据这些分数框bbox
+    specific_det_bboxes = [[] for _ in range(len(poses))]
+    for i, (pose, score) in enumerate(zip(poses, scores)):
+        part_score = score[score_type]
+        for part_idx, part_score in enumerate(part_score):     # 可能有左右手，但是不影响此次遍历
+            mean_part_score = np.mean(part_score)
+            if mean_part_score > score_threshold:
+                part_bbox = get_bbox_from_position_list(pose[type][part_idx])
+                specific_det_bboxes[i].append(part_bbox)
+    return specific_det_bboxes
 
 def calculate_video_mean_and_std_pil(frames):
     variances = []
@@ -73,7 +95,7 @@ def process_single_video_with_timeout(*args, **kwargs):
             print(f"处理视频出错：{str(e)}")
 
 
-def process_single_video(detector, key, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args):
+def process_single_video(detector, key, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args):
     use_filter=filter_args['use_filter']
     save_mp4=filter_args['save_mp4']
 
@@ -94,7 +116,9 @@ def process_single_video(detector, key, video_root, save_dir_keypoints, save_dir
 
     out_path_keypoint = os.path.join(save_dir_keypoints, key + '.pt')
     out_path_bbox = os.path.join(save_dir_bboxes, key + '.pt')
-    out_path_mp4 = os.path.join(save_dir_mp4, key + '.mp4')
+    out_path_hands = os.path.join(save_dir_hands, key + '.pt')
+    out_path_faces = os.path.join(save_dir_faces, key + '.pt')
+    out_path_dwpose_mp4 = os.path.join(save_dir_dwpose_mp4, key + '.mp4')
 
     # output_dir = Path(os.path.dirname(os.path.join(save_dir, relative_path)))
     # if not output_dir.exists():
@@ -140,15 +164,19 @@ def process_single_video(detector, key, video_root, save_dir_keypoints, save_dir
         shutil.copyfile(single_path, target_single_path)
 
     poses, scores, det_results = zip(*detector_return_list) # 这里存的是整个视频的poses
+    hands_bboxes = convert_scores_to_specific_bboxes(poses, scores, type='hands', score_type='hand_score', score_threshold=0.72)
+    faces_bboxes = convert_scores_to_specific_bboxes(poses, scores, type='faces', score_type='face_score', score_threshold=0.9)
     poses, det_results = human_select(poses, det_results, multi_person)
 
     if save_mp4:
         mp4_results = draw_pose_to_canvas(poses, pool=None, H=H, W=W, reshape_scale=0, points_only_flag=False, show_feet_flag=False)
-        save_videos_from_pil(mp4_results, out_path_mp4, fps=16) # 实际可能fps不一致，需要视频fps存，这个是否会影响训练？
+        save_videos_from_pil(mp4_results, out_path_dwpose_mp4, fps=16) # 实际可能fps不一致，需要视频fps存，这个是否会影响训练？
         # 暂时不会 --> 因为视频训练时对视频取indice，frames和pose frames长度上必定一致
     
     torch.save(poses, out_path_keypoint)
     torch.save(det_results, out_path_bbox)
+    torch.save(hands_bboxes, out_path_hands)
+    torch.save(faces_bboxes, out_path_faces)
 
 
 
@@ -210,11 +238,11 @@ def load_config(config_path):
     return config
 
 def gpu_worker(gpu_id, task_queue, video_root, save_dir_keypoints, save_dir_bboxes,
-               save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args, max_detector_threads):
+               save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args, max_detector_threads):
     detector = DWposeDetector(use_batch=False).to(gpu_id)
     futures = set()
 
-    def process_task(task_queue, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args):
+    def process_task(task_queue, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args):
         while True:
             key = task_queue.get()
             if key is None:
@@ -223,14 +251,14 @@ def gpu_worker(gpu_id, task_queue, video_root, save_dir_keypoints, save_dir_bbox
                 process_single_video_with_timeout(
                     detector, key, video_root,
                     save_dir_keypoints, save_dir_bboxes,
-                    save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args
+                    save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args
                 )
             except Exception as e:
                 print(f"Task failed: {e}")
 
     with ThreadPoolExecutor(max_workers=max_detector_threads) as executor:
         for _ in range(max_detector_threads):
-            futures.add(executor.submit(process_task, task_queue, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args))
+            futures.add(executor.submit(process_task, task_queue, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args))
         for future in futures:
             future.result()
 
@@ -296,20 +324,23 @@ if __name__ == "__main__":
     video_root = config.get('video_root', '')
     filter_args = config.get('filter_args', {})
     max_detector_threads = config.get('max_detector_threads', 8)
-    name_args = config.get('name_args', {'keypoint_suffix_name': 'keypoints', 'bbox_suffix_name': 'bboxes', 'mp4_suffix_name': 'dwpose', 'caption_suffix_name': 'caption', 'caption_suffix_name_multi': 'caption_multi'})
     tar_paths = glob.glob(os.path.join(wds_root, "**", "*.tar"), recursive=True)
     max_samples_per_gpu = config.get('max_samples_per_gpu', 1000000)
 
-    save_dir_keypoints = os.path.join(video_root, name_args['keypoint_suffix_name'])
-    save_dir_bboxes = os.path.join(video_root, name_args['bbox_suffix_name'])
-    save_dir_mp4 = os.path.join(video_root, name_args['mp4_suffix_name'])
-    save_dir_caption = os.path.join(video_root, name_args['caption_suffix_name'])
-    save_dir_caption_multi = os.path.join(video_root, name_args['caption_suffix_name_multi'])
+    save_dir_keypoints = os.path.join(video_root, 'keypoints')
+    save_dir_bboxes = os.path.join(video_root, 'bboxes')
+    save_dir_dwpose_mp4 = os.path.join(video_root, 'dwpose')
+    save_dir_hands = os.path.join(video_root, 'hands')
+    save_dir_faces = os.path.join(video_root, 'faces')
+    save_dir_caption = os.path.join(video_root, 'caption')
+    save_dir_caption_multi = os.path.join(video_root, 'caption_multi')
     tmp_dir = os.path.join("/dev/shm/tmp")
 
     os.makedirs(save_dir_keypoints, exist_ok=True)
     os.makedirs(save_dir_bboxes, exist_ok=True)
-    os.makedirs(save_dir_mp4, exist_ok=True)
+    os.makedirs(save_dir_hands, exist_ok=True)
+    os.makedirs(save_dir_faces, exist_ok=True)
+    os.makedirs(save_dir_dwpose_mp4, exist_ok=True)
     os.makedirs(save_dir_caption, exist_ok=True)
     os.makedirs(save_dir_caption_multi, exist_ok=True)
     os.makedirs(tmp_dir, exist_ok=True)
@@ -321,7 +352,7 @@ if __name__ == "__main__":
     processes = []
     producer_processes = []
 
-    p = multiprocessing.Process(target=gpu_worker, args=(local_rank, task_queue, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_mp4, save_dir_caption, save_dir_caption_multi, filter_args, max_detector_threads))
+    p = multiprocessing.Process(target=gpu_worker, args=(local_rank, task_queue, video_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args, max_detector_threads))
     p.start()
 
     # 生产者进程（mp4/wds）
