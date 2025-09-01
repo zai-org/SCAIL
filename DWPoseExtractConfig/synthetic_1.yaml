@@ -1,0 +1,8 @@
+# 处理进度见/workspace/ywh_data/DataProcess/ProcessDataViaAPI/process_config.yaml
+video_root: "/workspace/ywh_data/synthetic_data/synthetic_bilibili_dance_shuping_0929-1280_720"
+wds_root: "/workspace/ywh_data/synthetic_data/wds_synthetic_bilibili_dance_shuping_0929-1280_720"
+
+filter_args:
+  use_filter: False
+  save_mp4: True
+  use_fail_prompt: False
