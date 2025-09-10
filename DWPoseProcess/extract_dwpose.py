@@ -42,17 +42,37 @@ def get_bbox_from_position_list(position_list):
     return x1, y1, x2, y2
 
 
-def convert_scores_to_specific_bboxes(poses, scores, type='hands', score_type='hand_score', score_threshold=0.75):
+def convert_scores_to_specific_bboxes(poses, scores, type='hands', score_threshold=0.6):
     # 输入scores, a list of dict, 每个dict包含body_score, hand_score, face_score, body_score是[n, 24]的矩阵，hand_score是[2*n, 21]的矩阵，face_score是[n, 68]的矩阵
     # 如果平均值>0.3，再根据这些分数框bbox
     specific_det_bboxes = [[] for _ in range(len(poses))]
     for i, (pose, score) in enumerate(zip(poses, scores)):
-        part_score = score[score_type]
-        for part_idx, part_score in enumerate(part_score):     # 可能有左右手，但是不影响此次遍历
-            mean_part_score = np.mean(part_score)
-            if mean_part_score > score_threshold:
-                part_bbox = get_bbox_from_position_list(pose[type][part_idx])
-                specific_det_bboxes[i].append(part_bbox)
+        for human_idx, body_keypoints in enumerate(pose['bodies']['candidate']):     # 可能有左右手，但是不影响此次遍历
+            if type == 'hands':
+                all_num_hands = len(pose['hands'])
+                left_hand_position_list = pose['hands'][human_idx]    # 直接把左右手当成多个human的，绘制时问题不大
+                left_hand_score = score['hand_score'][human_idx]
+                right_hand_position_list = pose['hands'][human_idx + all_num_hands // 2]
+                right_hand_score = score['hand_score'][human_idx + all_num_hands // 2]
+                for left_or_right, (hand_position_list, hand_score) in enumerate([(left_hand_position_list, left_hand_score), (right_hand_position_list, right_hand_score)]):
+                    mean_hand_score = np.mean(hand_score)
+                    if mean_hand_score > score_threshold:
+                        elbow_xy = body_keypoints[3] if left_or_right else body_keypoints[6]
+                        wrist_xy =body_keypoints[4] if left_or_right else body_keypoints[7]
+                        if sum(wrist_xy) > 0 and sum(elbow_xy) > 0:
+                            cubit_vector = np.array(elbow_xy) - np.array(wrist_xy)
+                            new_anchor_up = np.array(wrist_xy) + cubit_vector / 4
+                            new_anchor_down = np.array(wrist_xy) - cubit_vector / 1.5
+                            hand_position_list = np.vstack([hand_position_list, new_anchor_up, new_anchor_down])
+                            specific_det_bboxes[i].append(get_bbox_from_position_list(hand_position_list))
+                    
+            elif type == 'faces':
+                position_list = pose['faces'][human_idx]
+                mean_face_score = np.mean(score['face_score'][human_idx])
+                if mean_face_score > score_threshold:
+                    specific_det_bboxes[i].append(get_bbox_from_position_list(position_list))
+            else:
+                raise ValueError(f"Invalid type: {type}")
     return specific_det_bboxes
 
 def calculate_video_mean_and_std_pil(frames):
@@ -164,8 +184,8 @@ def process_single_video(detector, key, video_root, save_dir_keypoints, save_dir
         shutil.copyfile(single_path, target_single_path)
 
     poses, scores, det_results = zip(*detector_return_list) # 这里存的是整个视频的poses
-    hands_bboxes = convert_scores_to_specific_bboxes(poses, scores, type='hands', score_type='hand_score', score_threshold=0.72)
-    faces_bboxes = convert_scores_to_specific_bboxes(poses, scores, type='faces', score_type='face_score', score_threshold=0.9)
+    hands_bboxes = convert_scores_to_specific_bboxes(poses, scores, type='hands', score_threshold=0.6)
+    faces_bboxes = convert_scores_to_specific_bboxes(poses, scores, type='faces', score_threshold=0.6)
     poses, det_results = human_select(poses, det_results, multi_person)
 
     if save_mp4:

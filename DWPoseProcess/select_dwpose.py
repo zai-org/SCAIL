@@ -33,77 +33,107 @@ import math
 import glob
 
 
-def process_video_to_indices(keypoint_path, bbox_path, height, width, fps, multi_person):   # TODO: 还是修改一下，16fps的interval在这里就可以取了
-    ori_poses = torch.load(keypoint_path, weights_only=False)
-    ori_bboxes = torch.load(bbox_path, weights_only=False)
-    target_fps = 16
-
-    H, W = height, width
-    max_slide_attempts = 30
-    start_index = 8
-    # 定义可选的 motion_part_len 值
-    possible_lengths = [49, 57, 65, 75, 81, 90, 100, 110, 135, 150, 180, 210, 240]
-    pick_indices = np.arange(0, len(ori_poses), fps / target_fps).astype(int)  # 比如orilist 0-10， downsample成 newlist [0 2 4 6 8], 那么newlist[1] 对应原来 orilist[2]，直接用即可
-    poses = [ori_poses[index] for index in pick_indices]
-    bboxes = [ori_bboxes[index] for index in pick_indices]
-    valid_lengths = [length for length in possible_lengths if length < len(poses) - 1]
-    valid_lengths.sort(reverse=True)
-
-
-    final_motion_indices = None
-
-    for motion_part_len in valid_lengths:
-        for _ in range(max_slide_attempts):
-            end = int(start_index + motion_part_len)
-            if end >= len(poses):
-                start_index -= 2    # 如果走太多就先后退一步
-                if start_index <= 0:
-                    break   # 跳出内层sliding loop
-                continue    # 不用while，记做总体重复次数
-
-            motion_part_indices = np.arange(start_index, end, 1).astype(int)
-            ref_part_indices = np.arange(max(start_index-15, 0), start_index + 1, 1).astype(int)
-
-            motion_part_poses = [poses[index] for index in motion_part_indices]
-            motion_part_bboxes = [bboxes[index] for index in motion_part_indices]
-            ref_part_poses = [poses[index] for index in ref_part_indices]
-            ref_part_bboxes = [bboxes[index] for index in ref_part_indices]
-
-            # 下面这四个筛选逻辑，除了bbox本身的，其他只对第0个bbox里的骨骼进行筛选
-            motion_part_bbox_check_result = check_from_keypoints_bbox(motion_part_poses, motion_part_bboxes, IoU_thresthold=0.3, reference_width=W, reference_height=H, multi_person=multi_person)
-            motion_part_core_check_result = check_from_keypoints_core_keypoints(motion_part_poses, motion_part_bboxes)
-            ref_part_check_indices = get_valid_indice_from_keypoints(ref_part_poses, ref_part_indices)
-            
-            if len(ref_part_check_indices) > 0 and motion_part_bbox_check_result and motion_part_core_check_result:    # 这里只要满足正脸条件就可以，其它都留着
-                if multi_person:
-                    final_ref_image_indice = select_ref_from_keypoints_bbox_multi(ref_part_indices, ref_part_bboxes, motion_part_bboxes)
-                    if final_ref_image_indice is None:
-                        start_index += random.randint(3, 4)
-                        continue
-                    delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.05)
-                    if not delta_check_result:
-                        start_index += random.randint(3, 4)
-                        continue
-                    final_ref_image_indices = [final_ref_image_indice]
-                else:
-                    delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.06)
-                    if not delta_check_result:
-                        start_index += random.randint(3, 4)
-                        continue
-                    final_ref_image_indices = ref_part_check_indices
-                # 转换索引
-                final_motion_indices = motion_part_indices.tolist()
-                break
-            else:
-                start_index += random.randint(3, 4)
-                continue
-
-        if final_motion_indices is None:
-            continue
+def process_video_to_indices_no_filter(keypoint_path, bbox_path, height, width, fps, multi_person):
+    try:
+        ori_poses = torch.load(keypoint_path, weights_only=False)
+        ori_bboxes = torch.load(bbox_path, weights_only=False)
+        target_fps = 16
+        pick_indices = np.arange(0, len(ori_poses), fps / target_fps).astype(int)
+        possible_lengths = [65, 81, 100, 130, 146, 162, 200]
+        if len(pick_indices) < 65:
+            return None
         else:
-            final_motion_indices = [int(pick_indices[idx]) for idx in final_motion_indices]
-            final_ref_image_indices = [int(pick_indices[idx]) for idx in final_ref_image_indices]
-            return final_motion_indices, final_ref_image_indices
+            for length in possible_lengths:
+                if len(pick_indices) >= length:
+                    # 从pick_indices中随机选择一个起始位置，然后取连续的length帧
+                    max_start = len(pick_indices) - length
+                    start_idx = np.random.randint(0, max_start + 1)
+                    selected_indices = pick_indices[start_idx:start_idx + length]
+                    
+                    # 从当前帧之前的30帧范围内随机选择参考帧
+                    ref_start = max(0, start_idx - 30)
+                    ref_end = start_idx
+                    selected_ref_indices = pick_indices[ref_start:ref_end + 1]
+                    
+                    return selected_indices.tolist(), selected_ref_indices.tolist()  # 返回选中的连续帧索引和随机选择的参考帧
+    except Exception as e:
+        print(f"Error processing video {keypoint_path}: {e}, continue")
+    return None
+
+def process_video_to_indices(keypoint_path, bbox_path, height, width, fps, multi_person):   # TODO: 还是修改一下，16fps的interval在这里就可以取了
+    try:
+        ori_poses = torch.load(keypoint_path, weights_only=False)
+        ori_bboxes = torch.load(bbox_path, weights_only=False)
+        target_fps = 16
+
+        H, W = height, width
+        max_slide_attempts = 30
+        # 定义可选的 motion_part_len 值
+        possible_lengths = [49, 65, 81, 130, 146, 162, 200]
+        pick_indices = np.arange(0, len(ori_poses), fps / target_fps).astype(int)  # 比如orilist 0-10， downsample成 newlist [0 2 4 6 8], 那么newlist[1] 对应原来 orilist[2]，直接用即可
+        poses = [ori_poses[index] for index in pick_indices]
+        bboxes = [ori_bboxes[index] for index in pick_indices]
+        valid_lengths = [length for length in possible_lengths if length < len(poses) - 1]
+        valid_lengths.sort(reverse=True)
+
+
+        final_motion_indices = None
+
+        for motion_part_len in valid_lengths:
+            start_index = 8
+            for _ in range(max_slide_attempts):
+                end = int(start_index + motion_part_len)
+                if end >= len(poses):
+                    start_index -= 2    # 如果走太多就先后退一步
+                    if start_index <= 0:
+                        break   # 跳出内层sliding loop
+                    continue    # 不用while，记做总体重复次数
+
+                motion_part_indices = np.arange(start_index, end, 1).astype(int)
+                ref_part_indices = np.arange(max(start_index-15, 0), start_index + 1, 1).astype(int)
+
+                motion_part_poses = [poses[index] for index in motion_part_indices]
+                motion_part_bboxes = [bboxes[index] for index in motion_part_indices]
+                ref_part_poses = [poses[index] for index in ref_part_indices]
+                ref_part_bboxes = [bboxes[index] for index in ref_part_indices]
+
+                # 下面这四个筛选逻辑，除了bbox本身的，其他只对第0个bbox里的骨骼进行筛选
+                motion_part_bbox_check_result = check_from_keypoints_bbox(motion_part_poses, motion_part_bboxes, IoU_thresthold=0.3, reference_width=W, reference_height=H, multi_person=multi_person)
+                motion_part_core_check_result = check_from_keypoints_core_keypoints(motion_part_poses, motion_part_bboxes)
+                ref_part_check_indices = get_valid_indice_from_keypoints(ref_part_poses, ref_part_indices)
+                
+                if len(ref_part_check_indices) > 0 and motion_part_bbox_check_result and motion_part_core_check_result:    # 这里只要满足正脸条件就可以，其它都留着
+                    if multi_person:
+                        final_ref_image_indice = select_ref_from_keypoints_bbox_multi(ref_part_indices, ref_part_bboxes, motion_part_bboxes)
+                        if final_ref_image_indice is None:
+                            start_index += random.randint(3, 4)
+                            continue
+                        delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.05)
+                        if not delta_check_result:
+                            start_index += random.randint(3, 4)
+                            continue
+                        final_ref_image_indices = [final_ref_image_indice]
+                    else:
+                        delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.06)
+                        if not delta_check_result:
+                            start_index += random.randint(3, 4)
+                            continue
+                        final_ref_image_indices = ref_part_check_indices
+                    # 转换索引
+                    final_motion_indices = motion_part_indices.tolist()
+                    break
+                else:
+                    start_index += random.randint(3, 4)
+                    continue
+
+            if final_motion_indices is None:
+                continue
+            else:
+                final_motion_indices = [int(pick_indices[idx]) for idx in final_motion_indices]
+                final_ref_image_indices = [int(pick_indices[idx]) for idx in final_ref_image_indices]
+                return final_motion_indices, final_ref_image_indices
+    except Exception as e:
+        print(f"Error processing video {keypoint_path}: {e}, continue")
     return None
 
 
@@ -140,7 +170,7 @@ def load_config(config_path):
         config = yaml.safe_load(f)
     return config
 
-def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args):
+def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args, eval_list):
     obj_list = []
     sample_list = []
     shard_size = 100
@@ -178,7 +208,9 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
                 fps = data.get('fps', None)
                 multi_path = os.path.join(save_dir_caption_multi, key + '.txt')
                 single_path = os.path.join(save_dir_caption, key + '.txt')
-
+                if key in eval_list:
+                    print(f"exclude {key}, in eval list")
+                    continue
                 out_path_keypoint = os.path.join(save_dir_keypoints, key + '.pt')
                 out_path_bbox = os.path.join(save_dir_bboxes, key + '.pt')
                 out_path_hands = os.path.join(save_dir_hands, key + '.pt')
@@ -211,7 +243,9 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
                     if process_result is None:
                         continue
                 elif filter_args.get('use_filter', False) == False:
-                    process_result = (list(range(81)), [0])
+                    process_result = process_video_to_indices_no_filter(out_path_keypoint, out_path_bbox, height, width, fps, multi_person)
+                    if process_result is None:
+                        continue
 
                 final_motion_indices, final_ref_image_indices = process_result
                 obj = meta_dict.get(key, None)
@@ -269,12 +303,30 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
         
         print(f"Written final shard {shard_id} with {len(sample_list)} samples")
 
+def get_eval_list():
+    eval_list = []
+    eval_dirs = ["/workspace/ys_data/evaluation_300/DWPose/videos"]
+    clean_eval_dirs = ["/workspace/ywh_data/evaluation_80_clear/videos"]
+    for eval_dir in eval_dirs:
+        for video_name in os.listdir(eval_dir):
+            eval_list.append(os.path.splitext(video_name)[0].split('_', 1)[1])
+    for clean_eval_dir in clean_eval_dirs:
+        for video_name in os.listdir(clean_eval_dir):
+            eval_list.append(os.path.splitext(video_name)[0])
+    return eval_list
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='video_directories.yaml', 
                         help='Path to YAML configuration file')
+    parser.add_argument('--force_no_filter', action='store_true', default=False,
+                        help='Force no filter')
+    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_default',
+                        help='Output root')
+    parser.add_argument('--max_processes', type=int, default=8,
+                        help='Max processes')
 
     args = parser.parse_args()
     config = load_config(args.config)
@@ -283,7 +335,11 @@ if __name__ == "__main__":
     tar_paths = glob.glob(os.path.join(wds_root, "**", "*.tar"), recursive=True)
     video_root = config.get('video_root', '')
     filter_args = config.get('filter_args', None)
-    output_root = os.path.join("/workspace/ywh_data/pose_packed_wds_0901", os.path.basename(os.path.normpath(video_root)))
+    if args.force_no_filter:
+        filter_args['use_filter'] = False
+    output_root = os.path.join(args.output_root, os.path.basename(os.path.normpath(video_root)))
+    if os.path.exists(output_root):
+        shutil.rmtree(output_root)
     os.makedirs(output_root, exist_ok=True)
 
     save_dir_keypoints = os.path.join(video_root, 'keypoints')
@@ -304,7 +360,7 @@ if __name__ == "__main__":
 
 
     processes = []  # 存储进程的列表
-    max_processes = 8  # 最大并发进程数
+    max_processes = args.max_processes
 
     # Split wds_list into chunks
     random.shuffle(tar_paths)
@@ -312,11 +368,12 @@ if __name__ == "__main__":
     if len(tar_paths) % max_processes != 0:
         chunk_size += 1
     chunks = [tar_paths[i:i + chunk_size] for i in range(0, len(tar_paths), chunk_size)]
+    eval_list = get_eval_list()
     
     for chunk_idx, chunk in enumerate(chunks):
         p = Process(
             target=process_tar,
-            args=(chunk, chunk_idx, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args)
+            args=(chunk, chunk_idx, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args, eval_list)
         )
         p.start()
         processes.append(p)

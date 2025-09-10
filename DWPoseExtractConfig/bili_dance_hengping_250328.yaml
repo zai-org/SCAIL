@@ -1,6 +1,7 @@
 # 处理进度见/workspace/ywh_data/DataProcess/ProcessDataViaAPI/process_config.yaml
 video_root: "/workspace/ywh_data/DataProcessNew/bili_dance_hengping_250328"
 wds_root: "/workspace/data1/video_and_image_datas/processed_videos_wds_datas/bilibili/bili_dance_hengping_250328"
+max_detector_threads: 4
 
 filter_args:
   use_filter: True

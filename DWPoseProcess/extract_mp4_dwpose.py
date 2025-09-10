@@ -30,7 +30,7 @@ import decord
 import json
 import glob
 import sys
-from extract_dwpose import convert_scores_to_specific_bboxes, get_bbox_from_position_list
+from extract_dwpose import convert_scores_to_specific_bboxes
 
 def draw_bbox_to_mp4(frames_PIL, bboxes):
     # 输入: frames_PIL: T of PIL Images, bboxes: T of list of (x1, y1, x2, y2), x, y 属于 [0, 1]
@@ -66,16 +66,7 @@ def draw_bbox_to_mp4(frames_PIL, bboxes):
     
     return out_PIL
 
-def process_single_video(detector, key, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_regional_preview, save_dir_mp4):
-    try:
-        tmp_dir = "/dev/shm/tmp"
-        pt_path = os.path.join(tmp_dir, key + '.pt')
-        frames_tensor = torch.load(pt_path)
-        os.unlink(pt_path)
-    except Exception as e:
-        print(f"Load Tensor Failed: {str(e)}")
-        return
-
+def process_single_video(detector, frames_tensor, key, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_regional_preview, save_dir_mp4):
     out_path_keypoint = os.path.join(save_dir_keypoints, key + '.pt')
     out_path_bbox = os.path.join(save_dir_bboxes, key + '.pt')
     out_path_hands = os.path.join(save_dir_hands, key + '.pt')
@@ -101,9 +92,9 @@ def process_single_video(detector, key, save_dir_keypoints, save_dir_bboxes, sav
     W, H = pil_frames[0].size
 
     poses, scores, det_results = zip(*detector_return_list) # 这里存的是整个视频的poses
-    hands_bboxes = convert_scores_to_specific_bboxes(poses, scores, type='hands', score_type='hand_score', score_threshold=0.72)
-    faces_bboxes = convert_scores_to_specific_bboxes(poses, scores, type='faces', score_type='face_score', score_threshold=0.9)
-    mp4_results = draw_pose_to_canvas(poses, pool=None, H=H, W=W, reshape_scale=0, points_only_flag=False, show_feet_flag=False)
+    hands_bboxes = convert_scores_to_specific_bboxes(poses, scores, type='hands', score_threshold=0.6)
+    faces_bboxes = convert_scores_to_specific_bboxes(poses, scores, type='faces', score_threshold=0.6)
+    mp4_results = draw_pose_to_canvas(poses, pool=None, H=H, W=W, reshape_scale=0, points_only_flag=False, show_feet_flag=False, dw_hand=True)
     preview_results = draw_bbox_to_mp4(pil_frames, hands_bboxes)
     preview_results = draw_bbox_to_mp4(preview_results, faces_bboxes)
 
@@ -123,16 +114,6 @@ def load_config(config_path):
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     return config
-
-def gpu_worker_wigh_detector(detector, task_queue, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_regional_preview, save_dir_mp4):
-    while True:
-        key = task_queue.get()
-        if key is None:
-            break
-        try:
-            process_single_video(detector, key, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_regional_preview, save_dir_mp4)
-        except Exception as e:
-            print(f"Task failed: {e}")
 
 
 def produce_mp4(task_queue, raw_video_dir):
@@ -158,7 +139,7 @@ if __name__ == "__main__":
     save_dir_hands = os.path.join(video_root, 'videos_hands')
     save_dir_faces = os.path.join(video_root, 'videos_faces')
     save_dir_regional_preview = os.path.join(video_root, 'videos_regional_preview')
-    save_dir_mp4 = os.path.join(video_root, 'videos_dwpose')
+    save_dir_mp4 = os.path.join(video_root, 'videos_dwpose_ori')
     raw_mp4_dir =  os.path.join(video_root, 'videos')
     tmp_dir = os.path.join("/dev/shm/tmp")
 
@@ -170,14 +151,21 @@ if __name__ == "__main__":
     os.makedirs(save_dir_mp4, exist_ok=True)
     os.makedirs(tmp_dir, exist_ok=True)
 
-    task_queue = multiprocessing.Queue(24)
     detector = DWposeDetector(use_batch=False).to(local_rank)
-    t = threading.Thread(target=gpu_worker_wigh_detector, args=(detector, task_queue, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_regional_preview, save_dir_mp4))
-    t.start()
 
-    # 生产者进程（mp4/wds）
-    produce_mp4(task_queue, raw_mp4_dir)
-    task_queue.put(None)  # 发送结束标记
+
+    tmp_dir = "/dev/shm/tmp"
+    for _, raw_video_filename in tqdm(enumerate(os.listdir(raw_mp4_dir))):
+        if raw_video_filename.endswith('.mp4'):
+            decord.bridge.set_bridge("torch")
+            vr = VideoReader(os.path.join(raw_mp4_dir, raw_video_filename))
+            frame_indices = list(range(len(vr)))
+            frames = vr.get_batch(frame_indices)
+            frames = torch.from_numpy(frames) if type(frames) is not torch.Tensor else frames
+            key = raw_video_filename.replace('.mp4', '')
+            process_single_video(detector, frames, key, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_regional_preview, save_dir_mp4)
+
+
     
 
     
