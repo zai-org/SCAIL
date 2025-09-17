@@ -176,7 +176,7 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
     shard_size = 100
     shard_id = 0
     output_pattern = "%06d"
-    for _, wds_path in tqdm(enumerate(wds_chunk), desc=f"process chunk {chunk_id}\n", total=len(wds_chunk)):
+    for _, wds_path in tqdm(enumerate(wds_chunk), total=len(wds_chunk), disable=(chunk_id != 0)):
         meta_dict = {}
         meta_file = wds_path.replace('.tar', '.meta.jsonl')
         meta_lines = open(meta_file).readlines()
@@ -194,7 +194,7 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
             wds.tarfile_to_samples(),
             partial(process_fn_video, meta_dict=meta_dict),
         )
-        dataloader = DataLoader(dataset, batch_size=1, num_workers=8, shuffle=False)
+        dataloader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=False)
         data_iter = iter(dataloader)
 
         for data_batch in data_iter:
