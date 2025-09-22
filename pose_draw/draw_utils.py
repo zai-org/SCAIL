@@ -3,7 +3,7 @@ import math
 import numpy as np
 import matplotlib
 import cv2
-
+import random
 
 eps = 0.01
 
@@ -189,6 +189,96 @@ def draw_bodypose_with_feet(canvas, candidate, subset):
             x = int(x * W)
             y = int(y * H)
             cv2.circle(canvas, (int(x), int(y)), 4, colors[i], thickness=-1)
+    return canvas
+
+
+def draw_bodypose_augmentation(canvas, candidate, subset):
+    H, W, C = canvas.shape
+    candidate = np.array(candidate)
+    subset = np.array(subset)
+
+    stickwidth = 4
+
+    limbSeq = [
+        [2, 3],  # 1->2 左肩 0
+        [2, 6],  # 1->5 右肩 1
+        [3, 4],  # 2->3 左臂 2
+        [4, 5],  # 3->4 左肘 3
+        [6, 7],  # 5->6 右臂 4
+        [7, 8],  # 6->7 右肘 5
+        [2, 9],
+        [9, 10],
+        [10, 11],
+        [2, 12],
+        [12, 13],
+        [13, 14],
+        [2, 1],
+        [1, 15],
+        [15, 17],
+        [1, 16],
+        [16, 18],
+        [3, 17],
+        [6, 18],
+    ]
+
+    colors = [
+        [30, 225, 30],
+        [30, 225, 150],
+        [30, 180, 225],
+        [30, 30, 225],
+        [100, 30, 225],
+        [180, 30, 225],
+        [225, 30, 225],
+        [225, 30, 150],
+        [225, 30, 100],
+        [225, 30, 30],
+        [225, 100, 30],
+        [225, 180, 30],
+        [225, 225, 30],
+        [180, 225, 30],
+        [100, 225, 30],
+        [30, 225, 100],
+        [30, 225, 225],
+        [120, 120, 225],  
+    ]
+
+    # 随机选0-2根骨骼进行丢弃
+    arr_drop = list(range(17))  
+    k_drop = random.choices([0, 1, 2], weights=[0.5, 0.3, 0.2])[0]
+    drop_indices = random.sample(arr_drop, k_drop)
+
+    for i in range(17):
+        for n in range(len(subset)):
+            index = subset[n][np.array(limbSeq[i]) - 1]
+            if -1 in index:
+                continue
+            Y = candidate[index.astype(int), 0] * float(W)
+            X = candidate[index.astype(int), 1] * float(H)
+
+            if i in drop_indices:
+                continue
+
+            mX = np.mean(X)   # 计算两个关节点之间的中点
+            mY = np.mean(Y)
+            length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
+            angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
+            polygon = cv2.ellipse2Poly(
+                (int(mY), int(mX)), (int(length / 2), stickwidth), int(angle), 0, 360, 1
+            )
+            cv2.fillConvexPoly(canvas, polygon, colors[i])
+
+    canvas = (canvas * 0.6).astype(np.uint8)
+
+    for i in range(18):
+        for n in range(len(subset)):
+            index = int(subset[n][i])
+            if index == -1:
+                continue
+            x, y = candidate[index][0:2]
+            x = int(x * W)
+            y = int(y * H)
+            cv2.circle(canvas, (int(x), int(y)), 4, colors[i], thickness=-1)
+
     return canvas
 
 def draw_bodypose(canvas, candidate, subset):

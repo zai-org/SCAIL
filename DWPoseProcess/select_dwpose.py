@@ -306,7 +306,7 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
 def get_eval_list():
     eval_list = []
     eval_dirs = ["/workspace/ys_data/evaluation_300/DWPose/videos"]
-    clean_eval_dirs = ["/workspace/ywh_data/evaluation_80_clear/videos"]
+    clean_eval_dirs = ["/workspace/ywh_data/eval_hq_v2/videos"]
     for eval_dir in eval_dirs:
         for video_name in os.listdir(eval_dir):
             eval_list.append(os.path.splitext(video_name)[0].split('_', 1)[1])
