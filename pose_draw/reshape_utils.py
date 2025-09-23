@@ -113,7 +113,7 @@ def pose_whole_scale(scale_x, scale_y, pose):   # 目前仅能用于单人
             right_hand_point[1] = right_hand_point[1] + (right_hand_point[1] - bbox_center_y) * scale_y
 
 
-# 如果做多人增强，需要修改逻辑，每个人都有随机性，现在都是做单人增强
+# 如果做多人增强，需要修改逻辑，每个人都有随机性，现在都是做单人增强，增强方法一致
 def pose_reshape(alpha, pose, 
                  anchor_point, anchor_part, end_point, end_part, 
                  affected_body_points, affected_faces_points, affected_left_hands_points, affected_right_hands_points):
@@ -177,6 +177,7 @@ def pose_reshape(alpha, pose,
                 continue
             right_hand[affected_hands_point] = [affected_x + offset_x, affected_y + offset_y]
 
+# reshapePool只负责形变，骨骼偏移、丢弃等得从draw层来做
 class reshapePool:
     def __init__(self, alpha):  # 对每个视频只初始化一次
         self.faces_indices = np.arange(0, 68)

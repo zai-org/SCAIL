@@ -17,7 +17,6 @@ import yaml  # Add this import
 import os
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
-from render_3d.render_cylinder import render_colored_cylinders
 from decord import VideoReader
 import copy
 
@@ -26,7 +25,8 @@ import copy
 def draw_pose_points_only(pose, H, W, show_feet=False):
     raise NotImplementedError("draw_pose_points_only is not implemented")
 
-def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_face=True, dw_bgr=False, dw_hand=False):
+
+def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_face=True, dw_bgr=False, dw_hand=False, aug_body_draw=False):
     final_canvas = np.zeros(shape=(H, W, 3), dtype=np.uint8)
     for i in range(len(pose["bodies"]["candidate"])):
         canvas = np.zeros(shape=(H, W, 3), dtype=np.uint8)
@@ -38,7 +38,10 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_
 
         if show_body:
             if len(subset[0]) <= 18 or show_feet == False:
-                canvas = util.draw_bodypose(canvas, candidate, subset)
+                if aug_body_draw:
+                    canvas = util.draw_bodypose_augmentation(canvas, candidate, subset)
+                else:
+                    canvas = util.draw_bodypose(canvas, candidate, subset)
             else:
                 canvas = util.draw_bodypose_with_feet(canvas, candidate, subset)
             if dw_bgr:
@@ -53,15 +56,12 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_
         final_canvas = final_canvas + canvas
     return final_canvas
 
-def draw_pose_to_canvas(poses, pool, H, W, reshape_scale, points_only_flag, show_feet_flag, show_body_flag=True, show_hand_flag=True, show_face_flag=True, dw_bgr=False, dw_hand=False):
+def draw_pose_to_canvas(poses, pool, H, W, reshape_scale, points_only_flag, show_feet_flag, show_body_flag=True, show_hand_flag=True, show_face_flag=True, dw_bgr=False, dw_hand=False, aug_body_draw=False):
     canvas_lst = []
     for pose in poses:
         if reshape_scale > 0:
             pool.apply_random_reshapes(pose)
-        if points_only_flag:
-            canvas = draw_pose_points_only(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag, dw_bgr, dw_hand)
-        else:
-            canvas = draw_pose(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag, dw_bgr, dw_hand)
+        canvas = draw_pose(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag, dw_bgr, dw_hand, aug_body_draw)
         canvas_img = Image.fromarray(canvas)
         canvas_lst.append(canvas_img)
     return canvas_lst
@@ -308,8 +308,8 @@ def render_3d_pose(frames, canvas_lst, dwpose_keypoint_path, threed_keypoint_pai
             else:
                 cylinder_specs.append((lift_3d_kpts[start], lift_3d_kpts[end], colors[line_idx]))
         
-        render_image = render_colored_cylinders(cylinder_specs, img_focal, img_princpt, image_size=(H, W), img=img)
-        render_images.append(render_image)
+        # render_image = render_colored_cylinders(cylinder_specs, img_focal, img_princpt, image_size=(H, W), img=img)
+        # render_images.append(render_image)
 
     file_path = output_path.replace(".mp4", f"_3d_pose.mp4")
     save_videos_from_pil(render_images, file_path, 16)

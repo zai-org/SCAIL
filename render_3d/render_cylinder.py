@@ -5,6 +5,10 @@ import numpy as np
 import cv2
 from PIL import Image
 
+os.environ['PYOPENGL_PLATFORM'] = 'osmesa'
+import pyrender
+import trimesh
+
 
 def overlay_image_onto_background(image_rgb, alpha_mask, background_color=(0.0, 0.0, 0.0)):
     """
@@ -27,34 +31,10 @@ def overlay_image_onto_background(image_rgb, alpha_mask, background_color=(0.0, 
     out_image = image_rgb * alpha_mask.unsqueeze(-1) + background * (1 - alpha_mask.unsqueeze(-1))
     return out_image
 
-def render_colored_cylinders(cylinder_specs, focal, princpt, image_size=(1280, 1280), img=None):
-    os.environ['PYOPENGL_PLATFORM'] = 'osmesa'
-    import pyrender
-    import trimesh
+def render_colored_cylinders(cylinder_specs, image_size=(1280, 1280), scene=None):    
     H, W = image_size
-    if isinstance(focal, float) or isinstance(focal, int):
-        fx, fy = focal, focal
-    else:
-        fx, fy = focal[0], focal[1]
-    cx, cy = princpt
-
-    # 初始化场景
-    scene = pyrender.Scene(bg_color=[0, 0, 0, 0], ambient_light=[0.1, 0.1, 0.1])
-
-    # 设置相机
-    camera = pyrender.IntrinsicsCamera(fx=fx, fy=fy, cx=cx, cy=cy)
-    pyrender2opencv = np.array([[1.0, 0, 0, 0],
-                                 [0, -1, 0, 0],
-                                 [0, 0, -1, 0],
-                                 [0, 0, 0, 1]])
-    cam_pose = pyrender2opencv @ np.eye(4)
-    scene.add(camera, pose=cam_pose)
-
-    # 添加光源
-    light = pyrender.DirectionalLight(color=np.ones(3), intensity=3.0)
-    scene.add(light, pose=cam_pose)
-
     points_to_draw = []
+    added_nodes = []
 
     for start, end, color in cylinder_specs:
         start = np.array(start)
@@ -64,7 +44,7 @@ def render_colored_cylinders(cylinder_specs, focal, princpt, image_size=(1280, 1
         if height == 0:
             continue
 
-        tm = trimesh.creation.cylinder(radius=0.008, height=height, sections=32)
+        tm = trimesh.creation.cylinder(radius=12, height=height, sections=32)
 
         # 旋转对齐z轴
         z_axis = np.array([0, 0, 1])
@@ -86,9 +66,10 @@ def render_colored_cylinders(cylinder_specs, focal, princpt, image_size=(1280, 1
         )
 
         mesh = pyrender.Mesh.from_trimesh(tm, material=material)
-        scene.add(mesh)
+        node = scene.add(mesh)
+        added_nodes.append(node)
 
-        # 投影点用于可视化，检查投射是否正确
+        # # [Optional]: 投影点用于可视化，debug投射是否正确
         # x1 = fx * (start[0] / start[2]) + cx
         # y1 = fy * (start[1] / start[2]) + cy
         # x2 = fx * (end[0] / end[2]) + cx
@@ -105,46 +86,15 @@ def render_colored_cylinders(cylinder_specs, focal, princpt, image_size=(1280, 1
     # 转 uint8
     final_img = (color * 255).astype(np.uint8)
 
-    mask_bool = np.any(final_img != 0, axis=-1)
-    combined_img = np.where(np.expand_dims(mask_bool, axis=-1) if len(final_img.shape) == 3 else mask_bool,
-                            final_img,
-                            img)
+    # 渲染完成后删除添加的mesh
+    for node in added_nodes:
+        scene.remove_node(node)
 
-    # 画点，检查投射是否正确
+    # # [Optional]: 2D画点，debug投射是否正确
     # for (x, y) in points_to_draw:
     #     x_draw = int(x)
     #     y_draw = int(y)
     #     cv2.circle(final_img, (x_draw, y_draw), radius=4, color=(0, 255, 0), thickness=-1)
 
-    return Image.fromarray(combined_img)
+    return Image.fromarray(final_img)
 
-
-# test
-if __name__ == "__main__":
-    # 构造一个空白背景
-    H, W = 480, 640
-    img = np.zeros((H, W, 3), dtype=np.uint8) + 255  # 白色背景
-
-    # 构造几组3D点对和颜色
-    cylinder_specs = [
-        (np.array([0, 0, 2]), np.array([0, 1, 2]), [1.0, 0.0, 0.0, 1.0]),  # 红色
-        (np.array([0, 0, 2]), np.array([1, 0, 2]), [0.0, 1.0, 0.0, 1.0]),  # 绿色
-        (np.array([0, 0, 2]), np.array([0, 0, 3]), [0.0, 0.0, 1.0, 1.0]),  # 蓝色
-    ]
-
-    # 简单的相机参数
-    fx, fy = 500, 500
-    cx, cy = W // 2, H // 2
-
-    # 调用渲染函数
-    img_pil = render_colored_cylinders(
-        cylinder_specs=cylinder_specs,
-        focal=(fx, fy),
-        princpt=(cx, cy),
-        image_size=(H, W),
-        img=img
-    )
-
-    # 显示或保存结果
-    img_pil.show()
-    # img_pil.save("test_render_cylinder.png")
