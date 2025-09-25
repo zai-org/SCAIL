@@ -192,7 +192,7 @@ def draw_bodypose_with_feet(canvas, candidate, subset):
     return canvas
 
 
-def draw_bodypose_augmentation(canvas, candidate, subset):
+def draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=True, shift_aug=False):
     H, W, C = canvas.shape
     candidate = np.array(candidate)
     subset = np.array(subset)
@@ -243,9 +243,16 @@ def draw_bodypose_augmentation(canvas, candidate, subset):
     ]
 
     # 随机选0-2根骨骼进行丢弃
-    arr_drop = list(range(17))  
-    k_drop = random.choices([0, 1, 2], weights=[0.5, 0.3, 0.2])[0]
-    drop_indices = random.sample(arr_drop, k_drop)
+    if drop_aug:
+        arr_drop = list(range(17))  
+        k_drop = random.choices([0, 1, 2], weights=[0.5, 0.3, 0.2])[0]
+        drop_indices = random.sample(arr_drop, k_drop)
+    else:
+        drop_indices = []
+    if shift_aug:
+        shift_indices = random.sample(list(range(17)), 2)
+    else:
+        shift_indices = []
 
     for i in range(17):
         for n in range(len(subset)):
@@ -261,6 +268,9 @@ def draw_bodypose_augmentation(canvas, candidate, subset):
             mX = np.mean(X)   # 计算两个关节点之间的中点
             mY = np.mean(Y)
             length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
+            if i in shift_indices:
+                mX = mX + random.uniform(-length/4, length/4)
+                mY = mY + random.uniform(-length/4, length/4)
             angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
             polygon = cv2.ellipse2Poly(
                 (int(mY), int(mX)), (int(length / 2), stickwidth), int(angle), 0, 360, 1

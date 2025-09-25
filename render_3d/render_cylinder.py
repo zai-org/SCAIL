@@ -98,3 +98,61 @@ def render_colored_cylinders(cylinder_specs, image_size=(1280, 1280), scene=None
 
     return Image.fromarray(final_img)
 
+
+def main():
+    """
+    Main function to set up the scene, define test cylinders,
+    render them, and save the output.
+    """
+    IMG_SIZE = (1280, 1280)
+
+    # 1. Create the scene
+    scene = pyrender.Scene(bg_color=[0.0, 0.0, 0.0, 0.0], ambient_light=[0.3, 0.3, 0.3])
+
+    # 2. Add a camera
+    # ================================================================= #
+    # ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ #
+    #         THIS IS THE CORRECTED LINE                              #
+    # We must specify znear and zfar to ensure objects are visible      #
+    camera = pyrender.OrthographicCamera(xmag=300, ymag=300, znear=0.1, zfar=1000)
+    # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ #
+    # ================================================================= #
+
+    # Position the camera to look at the origin from a distance
+    camera_pose = np.array([
+       [1.0, 0.0, 0.0, 0.0],
+       [0.0, 1.0, 0.0, 0.0],
+       [0.0, 0.0, 1.0, 500.0], # Move camera back along Z-axis
+       [0.0, 0.0, 0.0, 1.0],
+    ])
+    scene.add(camera, pose=camera_pose)
+
+    # 3. Add a light source
+    light = pyrender.DirectionalLight(color=[1.0, 1.0, 1.0], intensity=2.0)
+    scene.add(light, pose=camera_pose) # Add light from the camera's position
+
+    # 4. Define the test cylinders (a simple coordinate frame)
+    # X-axis in Red, Y-axis in Green, Z-axis in Blue
+    cylinder_specs = [
+        # ((start_x, start_y, start_z), (end_x, end_y, end_z), (R, G, B, Alpha))
+        ((0, 0, 0), (100, 0, 0), (1.0, 0.0, 0.0, 1.0)), # Red cylinder along X
+        ((0, 0, 0), (0, 100, 0), (0.0, 1.0, 0.0, 1.0)), # Green cylinder along Y
+        ((0, 0, 0), (0, 0, 100), (0.0, 0.0, 1.0, 1.0)), # Blue cylinder along Z
+    ]
+
+    # 5. Render the image
+    print("Rendering scene...")
+    rendered_image = render_colored_cylinders(
+        cylinder_specs=cylinder_specs,
+        image_size=IMG_SIZE,
+        scene=scene
+    )
+
+    # 6. Save the output
+    output_path = "test.jpg"
+    rendered_image.save(output_path)
+    print(f"Image saved successfully to {output_path}")
+
+
+if __name__ == "__main__":
+    main()

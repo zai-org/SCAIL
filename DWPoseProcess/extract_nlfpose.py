@@ -31,32 +31,24 @@ import jsonlines
 from webdataset import TarWriter
 import math
 import glob
-import decord
-from NLFPoseExtract.process_nlf import process_video_nlf, preview_nlf_as_images
 import pickle
+import copy
+from NLFPoseExtract.nlf_render import render_nlf_as_images
+from NLFPoseExtract.process_nlf import process_video_nlf, preview_nlf_as_images
+import decord
 
 # 总体逻辑：从wds中读视频，然后存一个3d kpts 字典到 pt文件
 # 同时要存2D可视化之后的NLF -> 全部存放
 
-def process_fn_video(src, meta_dict=None):
+def process_fn_video(src):
     worker_info = torch.utils.data.get_worker_info()
     for i, r in enumerate(src):
         if worker_info is not None:
             if i % worker_info.num_workers != worker_info.id:
                 continue
-        meta = meta_dict.get(r['__key__'], None)
-        if meta is None:
-            print(f"skip {r['__key__']}, no meta")
-            continue
-        r.update(meta)
-        ori_meta = meta.get('ori_meta', {})
-        if isinstance(ori_meta, dict):
-            r.update(ori_meta)
         key = r['__key__']
         mp4_bytes = r.get("mp4", None)
-        motion_indices = r.get("motion_indices", None)
-            
-                
+
         try:
             decord.bridge.set_bridge("torch")
             vr = VideoReader(io.BytesIO(mp4_bytes))   # 这里都是原视频，没有动的
@@ -67,7 +59,7 @@ def process_fn_video(src, meta_dict=None):
             print(e)
             print('load video error: ', key)
             continue
-        item = {'__key__': key, 'frames': frames, 'height': video_height, 'width': video_width, 'motion_indices': motion_indices}
+        item = {'__key__': key, 'frames': frames, 'height': video_height, 'width': video_width}
         yield item
 
 
@@ -77,29 +69,16 @@ def producer_worker_wds(tar_paths, task_queue):
     
 
 def produce_nlfpose(wds_path, task_queue):
-    meta_dict = {}
-    meta_file = wds_path.replace('.tar', '.meta.jsonl')
-    meta_lines = open(meta_file).readlines()
-    for meta_line in meta_lines:
-        meta_line = meta_line.strip()
-        try:
-            meta = json.loads(meta_line)
-        except Exception as e:
-            print(e)
-            print('json load error: ', meta_file)
-            continue
-        meta_dict[meta['key']] = meta
-
     dataset = wds.DataPipeline(
             wds.SimpleShardList(wds_path, seed=None),
             wds.tarfile_to_samples(),
-            partial(process_fn_video, meta_dict=meta_dict),
+            partial(process_fn_video),
         )
     dataloader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=False, collate_fn=lambda x: x[0])
     for data in tqdm(dataloader):
         task_queue.put(data)
 
-def gpu_worker(task_queue, save_dir_smpl, save_dir_smpl_preview):
+def gpu_worker(task_queue, save_dir_smpl):
     model = torch.jit.load("/workspace/yanwenhao/dwpose_draw/NLFPoseExtract/nlf_l_multi_0.3.2.torchscript").cuda().eval()
     while True:
         item = task_queue.get()
@@ -110,13 +89,9 @@ def gpu_worker(task_queue, save_dir_smpl, save_dir_smpl_preview):
             key = item['__key__']
             height = item['height']
             width = item['width']
-            motion_indices = item['motion_indices']
             output_data = process_video_nlf(model, frames, height, width)
-            output_data['motion_indices'] = motion_indices
             with open(os.path.join(save_dir_smpl, key + '.pkl'), 'wb') as f:
                 pickle.dump(output_data, f)
-            # vis_images = preview_nlf_as_images(output_data)
-            # save_videos_from_pil(vis_images, os.path.join(save_dir_smpl_preview, key + '.mp4'))
         except Exception as e:
             print(f"Task failed: {e}")
 
@@ -133,7 +108,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='video_directories.yaml', 
                         help='Path to YAML configuration file')
-    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0908',
+    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_pack_wds_0923_step1',
                         help='Input root')
     parser.add_argument('--local_rank', type=int, default=0,
                         help='Local rank')
@@ -148,20 +123,18 @@ if __name__ == "__main__":
     
 
     save_dir_smpl = os.path.join(video_root, 'smpl')
-    save_dir_smpl_preview = os.path.join(video_root, 'smpl_preview')
     os.makedirs(save_dir_smpl, exist_ok=True)
-    # os.makedirs(save_dir_smpl_preview, exist_ok=True)
 
 
     processes = []  # 存储进程的列表
-    max_queue_size = 1
+    max_queue_size = 32
     task_queue = multiprocessing.Queue(maxsize=max_queue_size)
     # Split wds_list into chunks
     input_root = os.path.join(args.input_root, os.path.basename(os.path.normpath(video_root)))
     input_tar_paths = glob.glob(os.path.join(input_root, "**", "*.tar"), recursive=True)
     input_tar_paths = sorted(input_tar_paths)
     input_tar_paths_for_the_rank = input_tar_paths[args.local_rank::args.world_size]
-    p = multiprocessing.Process(target=gpu_worker, args=(task_queue, save_dir_smpl, save_dir_smpl_preview))
+    p = multiprocessing.Process(target=gpu_worker, args=(task_queue, save_dir_smpl))
     p.start()
 
     producer_worker_wds(input_tar_paths_for_the_rank, task_queue)

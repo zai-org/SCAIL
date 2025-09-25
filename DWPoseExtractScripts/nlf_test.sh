@@ -9,7 +9,7 @@ export PYTHONPATH=$(pwd)
 
 
 # 串行
-# run_cmd="python DWPoseProcess/extract_nlfpose.py --config DWPoseExtractConfig/${CONFIG_FILE} --local_rank 1 --world_size 8"
+# run_cmd="python DWPoseProcess/extract_nlfpose.py --config DWPoseExtractConfig/${CONFIG_FILE} --local_rank 5 --world_size 8"
 # echo ${run_cmd}
 # eval ${run_cmd}
 

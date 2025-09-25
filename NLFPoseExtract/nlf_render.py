@@ -35,11 +35,10 @@ def render_single_pose(args):
 
 
 
-def render_nlf_as_images(data):
+def render_nlf_as_images(data, motion_indices):
     """ return a list of images """
     height, width = data['video_height'], data['video_width']
     video_length = data['video_length']
-    motion_indices = data['motion_indices']
 
     base_colors_255_dict = {
         # Warm Colors for Right Side (R.) - Red, Orange, Yellow

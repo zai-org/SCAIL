@@ -39,7 +39,13 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_
         if show_body:
             if len(subset[0]) <= 18 or show_feet == False:
                 if aug_body_draw:
-                    canvas = util.draw_bodypose_augmentation(canvas, candidate, subset)
+                    rand = random.random()
+                    if rand < 0.035:  # 非常小概率
+                        canvas = util.draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=False, shift_aug=True)
+                    elif rand < 0.45:
+                        canvas = util.draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=True, shift_aug=False)   # 本身里面只有50%概率drop，也就是5帧可能有一帧drop
+                    else:
+                        canvas = util.draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=False, shift_aug=False)
                 else:
                     canvas = util.draw_bodypose(canvas, candidate, subset)
             else:

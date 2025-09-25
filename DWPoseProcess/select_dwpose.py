@@ -31,66 +31,150 @@ import jsonlines
 from webdataset import TarWriter
 import math
 import glob
+import pickle
+import copy
+from NLFPoseExtract.nlf_draw import intrinsic_matrix_from_field_of_view, process_data_to_COCO_format, p3d_to_p2d
+from NLFPoseExtract.smpl_joint_xyz import compute_motion_speed, compute_motion_range
 
 
-def process_video_to_indices_no_filter(keypoint_path, bbox_path, height, width, fps, multi_person):
-    try:
-        ori_poses = torch.load(keypoint_path, weights_only=False)
-        ori_bboxes = torch.load(bbox_path, weights_only=False)
-        target_fps = 16
-        pick_indices = np.arange(0, len(ori_poses), fps / target_fps).astype(int)
-        possible_lengths = [65, 81, 100, 130, 146, 162, 200]
-        if len(pick_indices) < 65:
-            return None
+def project_dwpose_to_3d(dwpose_keypoint, original_threed_keypoint, focal, princpt, H, W):
+    # 相机内参
+    # fx, fy = focal, focal
+    fx, fy = focal
+    cx, cy = princpt
+
+    # 2D 关键点坐标
+    x_2d, y_2d = dwpose_keypoint[0] * W, dwpose_keypoint[1] * H
+
+    # 原始 3D 点（相机坐标系下）
+    ori_x, ori_y, ori_z = original_threed_keypoint
+
+    # 使用新的 2D 点和原始深度反投影计算新的 3D 点
+    # 公式: x = (u - cx) * z / fx
+    new_x = (x_2d - cx) * ori_z / fx
+    new_y = (y_2d - cy) * ori_z / fy
+    new_z = ori_z  # 保持深度不变
+
+    return [new_x, new_y, new_z]
+
+def check_2d_3d_match(dwpose_data, smpl_data, multi_person):
+    # dwpose_data: a list of [n, 24, 2], list length is t
+    # smpl_data: a list of [n, 24, 3] (another order), list length is t
+    match_t = []
+    video_height = smpl_data['video_height']
+    video_width = smpl_data['video_width']
+
+    limb_seq = [
+        [1, 2],    # 0 Neck -> R. Shoulder
+        [1, 5],    # 1 Neck -> L. Shoulder
+        [2, 3],    # 2 R. Shoulder -> R. Elbow
+        [3, 4],    # 3 R. Elbow -> R. Wrist
+        [5, 6],    # 4 L. Shoulder -> L. Elbow
+        [6, 7],    # 5 L. Elbow -> L. Wrist
+        [1, 8],    # 6 Neck -> R. Hip
+        [8, 9],    # 7 R. Hip -> R. Knee
+        [9, 10],   # 8 R. Knee -> R. Ankle
+        [1, 11],   # 9 Neck -> L. Hip
+        [11, 12],  # 10 L. Hip -> L. Knee
+        [12, 13],  # 11 L. Knee -> L. Ankle
+        [1, 0],    # 12 Neck -> Nose
+        # [0, 14],   # 13 Nose -> R. Eye
+        # [14, 16],  # 14 R. Eye -> R. Ear
+        # [0, 15],   # 15 Nose -> L. Eye
+        # [15, 17],  # 16 L. Eye -> L. Ear
+    ]
+
+    assert len(dwpose_data) == len(smpl_data['pose']['joints3d_nonparam']), "keypoints and smpl_data length mismatch, the former is %d, the other is %d" % (len(dwpose_data), len(smpl_data['pose']['joints3d_nonparam']))
+    for t in range(len(dwpose_data)):
+        dwpose_kpts = copy.deepcopy(dwpose_data[t]['bodies']['candidate'])
+        smpl_kpts = smpl_data['pose']['joints3d_nonparam'][t]
+        # 目前只支持单人
+        if not multi_person:
+            if dwpose_kpts.shape[0] == 0 or smpl_kpts.shape[0] == 0:
+                continue
+            else:
+                dwpose_2d_joints = dwpose_kpts[0]
+                smpl_3d_joints = smpl_kpts[0].cpu().numpy()   # torch->numpy
+                camera_matrix = intrinsic_matrix_from_field_of_view((video_height, video_width))
+                focal = camera_matrix[0, 0], camera_matrix[1, 1]
+                princpt = camera_matrix[0, 2], camera_matrix[1, 2]
+                smpl_3d_joints = process_data_to_COCO_format(smpl_3d_joints)[:14]   # 24->18点->14点
+                smpl_2d_joints = p3d_to_p2d(smpl_3d_joints, video_height, video_width)[0]
+                def out_of_screen(joint):
+                    if joint[0] < 0 or joint[0] > video_width or joint[1] < 0 or joint[1] > video_height:
+                        return True
+                    else:
+                        return False
+                dwpose_3d_joints = np.zeros((18, 3), dtype=smpl_3d_joints.dtype)
+                for j in range(14):  # 只取关键的几个点
+                    if dwpose_2d_joints[j][0] == -1 or dwpose_2d_joints[j][1] == -1:
+                        continue
+                    else:
+                        dwpose_3d_joints[j] = project_dwpose_to_3d(dwpose_2d_joints[j], smpl_3d_joints[j], focal, princpt, video_height, video_width)
+                match_flag = True
+                for line_idx in limb_seq:
+                    start, end = line_idx[0], line_idx[1]
+                    if np.sum(dwpose_3d_joints[start]) == 0 or np.sum(dwpose_3d_joints[end]) == 0 or out_of_screen(smpl_2d_joints[start]) or out_of_screen(smpl_2d_joints[end]):  # 没有识别出的点，或在屏幕外的点
+                        continue
+                    else:
+                        vec_dwpose = np.array(dwpose_3d_joints[end]) - np.array(dwpose_3d_joints[start])
+                        vec_smpl = np.array(smpl_3d_joints[end]) - np.array(smpl_3d_joints[start])
+                        vec_dwpose_len = np.linalg.norm(vec_dwpose)
+                        vec_smpl_len = np.linalg.norm(vec_smpl)
+                        if vec_dwpose_len > vec_smpl_len * 2.2 or vec_dwpose_len < vec_smpl_len * 0.4:
+                            match_flag = False
+                            break
+                if match_flag:
+                    match_t.append(t)
         else:
-            for length in possible_lengths:
-                if len(pick_indices) >= length:
-                    # 从pick_indices中随机选择一个起始位置，然后取连续的length帧
-                    max_start = len(pick_indices) - length
-                    start_idx = np.random.randint(0, max_start + 1)
-                    selected_indices = pick_indices[start_idx:start_idx + length]
-                    
-                    # 从当前帧之前的30帧范围内随机选择参考帧
-                    ref_start = max(0, start_idx - 30)
-                    ref_end = start_idx
-                    selected_ref_indices = pick_indices[ref_start:ref_end + 1]
-                    
-                    return selected_indices.tolist(), selected_ref_indices.tolist()  # 返回选中的连续帧索引和随机选择的参考帧
-    except Exception as e:
-        print(f"Error processing video {keypoint_path}: {e}, continue")
-    return None
+            if dwpose_kpts.shape[0] == 0 or smpl_kpts.shape[0] == 0:
+                continue
+            elif dwpose_kpts.shape[0] != smpl_kpts.shape[0]:
+                continue
+            else:
+                match_t.append(t)
+    return match_t
 
-def process_video_to_indices(keypoint_path, bbox_path, height, width, fps, multi_person):   # TODO: 还是修改一下，16fps的interval在这里就可以取了
+def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width, fps, multi_person, use_filter=True): 
     try:
         ori_poses = torch.load(keypoint_path, weights_only=False)
         ori_bboxes = torch.load(bbox_path, weights_only=False)
+        ori_smpl = pickle.load(open(smpl_path, 'rb'))
+        check_2d_3d_match_result = check_2d_3d_match(ori_poses, ori_smpl, multi_person)
         target_fps = 16
 
         H, W = height, width
         max_slide_attempts = 30
         # 定义可选的 motion_part_len 值
         possible_lengths = [49, 65, 81, 130, 146, 162, 200]
-        pick_indices = np.arange(0, len(ori_poses), fps / target_fps).astype(int)  # 比如orilist 0-10， downsample成 newlist [0 2 4 6 8], 那么newlist[1] 对应原来 orilist[2]，直接用即可
+        if use_filter:
+            pick_indices = np.arange(2, len(ori_poses)-2, fps / target_fps).astype(int)  # 比如orilist 0-10， downsample成 newlist [0 2 4 6 8], 那么newlist[1] 对应原来 orilist[2]，直接用即可 需要去掉前后两帧
+        else:
+            pick_indices = np.arange(0, len(ori_poses), 1).astype(int)   # 不去掉首尾帧，并且固定fps=16（因为是生成的，尽量保持81帧数都能取到）
+        # 这里后续需要改一下，均匀取样，每一种都要遍历下
         poses = [ori_poses[index] for index in pick_indices]
         bboxes = [ori_bboxes[index] for index in pick_indices]
         valid_lengths = [length for length in possible_lengths if length < len(poses) - 1]
         valid_lengths.sort(reverse=True)
-
-
         final_motion_indices = None
 
         for motion_part_len in valid_lengths:
             start_index = 8
             for _ in range(max_slide_attempts):
                 end = int(start_index + motion_part_len)
-                if end >= len(poses):
-                    start_index -= 2    # 如果走太多就先后退一步
-                    if start_index <= 0:
+                if end > len(poses):
+                    start_index -= 2    # 如果走太多就先后退一步，对no_filter也可以退到0
+                    if start_index < 0:
                         break   # 跳出内层sliding loop
                     continue    # 不用while，记做总体重复次数
 
                 motion_part_indices = np.arange(start_index, end, 1).astype(int)
-                ref_part_indices = np.arange(max(start_index-15, 0), start_index + 1, 1).astype(int)
+                ref_part_indices = np.arange(max(start_index-15, 0), start_index + 1, 1).astype(int)  # 对Synthetic视频，就是首帧
+                # 需要区分下单人的，还要改下，多人的检查下相等就可以了
+                motion_part_indices_in_check_2d_3d_match = [index for index in motion_part_indices if index in check_2d_3d_match_result]
+                if len(motion_part_indices_in_check_2d_3d_match) < 0.5 * motion_part_len:   # 正确的太少了
+                    start_index += random.randint(3, 4)
+                    continue
 
                 motion_part_poses = [poses[index] for index in motion_part_indices]
                 motion_part_bboxes = [bboxes[index] for index in motion_part_indices]
@@ -108,20 +192,19 @@ def process_video_to_indices(keypoint_path, bbox_path, height, width, fps, multi
                         if final_ref_image_indice is None:
                             start_index += random.randint(3, 4)
                             continue
-                        delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.05)
-                        if not delta_check_result:
-                            start_index += random.randint(3, 4)
-                            continue
                         final_ref_image_indices = [final_ref_image_indice]
                     else:
-                        delta_check_result = check_from_keypoints_stick_movement(motion_part_poses, angle_threshold=0.06)
-                        if not delta_check_result:
-                            start_index += random.randint(3, 4)
-                            continue
                         final_ref_image_indices = ref_part_check_indices
                     # 转换索引
                     final_motion_indices = motion_part_indices.tolist()
-                    break
+                    joints3d = ori_smpl['pose']['joints3d_nonparam']
+                    joints3d = [joints3d[i] for i in final_motion_indices]
+                    motion_speed = compute_motion_speed(joints3d)
+                    if motion_speed is None or motion_speed < 16:
+                        start_index += random.randint(3, 4)
+                        continue
+                    else:
+                        break   # 退出循环，返回
                 else:
                     start_index += random.randint(3, 4)
                     continue
@@ -131,7 +214,7 @@ def process_video_to_indices(keypoint_path, bbox_path, height, width, fps, multi
             else:
                 final_motion_indices = [int(pick_indices[idx]) for idx in final_motion_indices]
                 final_ref_image_indices = [int(pick_indices[idx]) for idx in final_ref_image_indices]
-                return final_motion_indices, final_ref_image_indices
+                return final_motion_indices, final_ref_image_indices, check_2d_3d_match_result
     except Exception as e:
         print(f"Error processing video {keypoint_path}: {e}, continue")
     return None
@@ -170,7 +253,7 @@ def load_config(config_path):
         config = yaml.safe_load(f)
     return config
 
-def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args, eval_list):
+def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_smpl, save_dir_caption, save_dir_caption_multi, filter_args, eval_list):
     obj_list = []
     sample_list = []
     shard_size = 100
@@ -213,53 +296,32 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
                     continue
                 out_path_keypoint = os.path.join(save_dir_keypoints, key + '.pt')
                 out_path_bbox = os.path.join(save_dir_bboxes, key + '.pt')
-                out_path_hands = os.path.join(save_dir_hands, key + '.pt')
-                out_path_faces = os.path.join(save_dir_faces, key + '.pt')
-                out_path_mp4 = os.path.join(save_dir_dwpose_mp4, key + '.mp4')
+                out_path_smpl = os.path.join(save_dir_smpl, key + '.pkl')
 
                 if os.path.exists(multi_path):
                     multi_person = True
-                    with open(multi_path, "r", encoding="utf-8") as f:
-                        txt_data = f.read()
                 elif os.path.exists(single_path):
                     multi_person = False
-                    with open(single_path, "r", encoding="utf-8") as f:
-                        txt_data = f.read()
                 else:
                     continue
-                if os.path.exists(out_path_bbox) and os.path.exists(out_path_hands) and os.path.exists(out_path_faces):
-                    pass
-                else:
+                if not os.path.exists(out_path_keypoint):
+                    print(f"skip {key}, no keypoint")
                     continue
-                with open(out_path_bbox, "rb") as f:
-                    bbox_data = f.read()
-                with open(out_path_hands, "rb") as f:
-                    hands_data = f.read()
-                with open(out_path_faces, "rb") as f:
-                    faces_data = f.read()
 
                 if filter_args is None or filter_args.get('use_filter', False) == True:
-                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, height, width, fps, multi_person)              
-                    if process_result is None:
-                        continue
+                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, out_path_smpl, height, width, fps, multi_person, use_filter=True)              
                 elif filter_args.get('use_filter', False) == False:
-                    process_result = process_video_to_indices_no_filter(out_path_keypoint, out_path_bbox, height, width, fps, multi_person)
-                    if process_result is None:
-                        continue
+                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, out_path_smpl, height, width, fps, multi_person, use_filter=False)
+                if process_result is None:
+                    continue
 
-                final_motion_indices, final_ref_image_indices = process_result
+                final_motion_indices, final_ref_image_indices, check_2d_3d_match_result = process_result
                 obj = meta_dict.get(key, None)
                 if obj is None:
                     print(f"skip {key}, no meta")
                     continue
-                obj.update({'motion_indices': final_motion_indices, 'ref_image_indices': final_ref_image_indices})
-                with open(out_path_mp4, "rb") as f:
-                    mp4_data = f.read()
-                data['dwpose'] = mp4_data
-                data['recaption'] = txt_data
-                data['bbox'] = bbox_data
-                data['hands'] = hands_data
-                data['faces'] = faces_data
+                obj.update({'motion_indices': final_motion_indices, 'ref_image_indices': final_ref_image_indices, 'check_2d_3d_match_result': check_2d_3d_match_result})
+
                 data.pop('height', None)
                 data.pop('width', None)
                 data.pop('fps', None)
@@ -321,8 +383,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='video_directories.yaml', 
                         help='Path to YAML configuration file')
-    parser.add_argument('--force_no_filter', action='store_true', default=False,
-                        help='Force no filter')
+    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_pack_wds_0923_step1',
+                        help='Input root')
     parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_default',
                         help='Output root')
     parser.add_argument('--max_processes', type=int, default=8,
@@ -331,18 +393,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = load_config(args.config)
 
-    wds_root = config.get('wds_root', '')
-    tar_paths = glob.glob(os.path.join(wds_root, "**", "*.tar"), recursive=True)
     video_root = config.get('video_root', '')
+    wds_root = os.path.join(args.input_root, os.path.basename(os.path.normpath(video_root)))
+    tar_paths = glob.glob(os.path.join(wds_root, "**", "*.tar"), recursive=True)
     filter_args = config.get('filter_args', None)
-    if args.force_no_filter:
-        filter_args['use_filter'] = False
     output_root = os.path.join(args.output_root, os.path.basename(os.path.normpath(video_root)))
     if os.path.exists(output_root):
         shutil.rmtree(output_root)
     os.makedirs(output_root, exist_ok=True)
 
     save_dir_keypoints = os.path.join(video_root, 'keypoints')
+    save_dir_smpl = os.path.join(video_root, 'smpl')
     save_dir_bboxes = os.path.join(video_root, 'bboxes')
     save_dir_dwpose_mp4 = os.path.join(video_root, 'dwpose')
     save_dir_hands = os.path.join(video_root, 'hands')
@@ -351,6 +412,7 @@ if __name__ == "__main__":
     save_dir_caption_multi = os.path.join(video_root, 'caption_multi')
 
     os.makedirs(save_dir_keypoints, exist_ok=True)
+    os.makedirs(save_dir_smpl, exist_ok=True)
     os.makedirs(save_dir_bboxes, exist_ok=True)
     os.makedirs(save_dir_dwpose_mp4, exist_ok=True)
     os.makedirs(save_dir_hands, exist_ok=True)
@@ -369,11 +431,15 @@ if __name__ == "__main__":
         chunk_size += 1
     chunks = [tar_paths[i:i + chunk_size] for i in range(0, len(tar_paths), chunk_size)]
     eval_list = get_eval_list()
-    
+
+    # 串行
+    # process_tar(tar_paths, 0, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_smpl, save_dir_caption, save_dir_caption_multi, filter_args, eval_list)
+
+    # 并行
     for chunk_idx, chunk in enumerate(chunks):
         p = Process(
             target=process_tar,
-            args=(chunk, chunk_idx, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_caption, save_dir_caption_multi, filter_args, eval_list)
+            args=(chunk, chunk_idx, output_root, save_dir_keypoints, save_dir_bboxes, save_dir_hands, save_dir_faces, save_dir_dwpose_mp4, save_dir_smpl, save_dir_caption, save_dir_caption_multi, filter_args, eval_list)
         )
         p.start()
         processes.append(p)
@@ -381,6 +447,7 @@ if __name__ == "__main__":
     for p in processes:
         p.join()
         gc.collect()
+
 
 
 
