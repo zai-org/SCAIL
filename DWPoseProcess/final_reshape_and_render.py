@@ -66,7 +66,8 @@ def reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_di
     meta_file = wds_path.replace('.tar', '.meta.jsonl')
     meta_lines = open(meta_file).readlines()
     tmp_dir = '/dev/shm/tmp'
-    os.makedirs(tmp_dir, exist_ok=True)
+    os.makedirs(os.path.join(tmp_dir, 'faces_hands'), exist_ok=True)
+    os.makedirs(os.path.join(tmp_dir, 'cheek_hands'), exist_ok=True)
     for meta_line in meta_lines:
         meta_line = meta_line.strip()
         try:
@@ -96,29 +97,52 @@ def reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_di
 
             out_path_dwpose_mp4 = os.path.join(save_dir_dwpose_mp4, key + '.mp4')
             out_path_smpl_render = os.path.join(save_dir_smpl_render, key + '.mp4')
-            out_path_dwpose_mp4_no_body = os.path.join(tmp_dir, key + '.mp4')
+            out_path_dwpose_mp4_face_hands = os.path.join(tmp_dir, 'faces_hands', key + '.mp4')
+            out_path_dwpose_mp4_cheek_hands = os.path.join(tmp_dir, 'cheek_hands', key + '.mp4')
+            # out_path_dwpose_mp4_face_hands = os.path.join(save_dir_smpl_render, key + '_face_hands.mp4')
+            # out_path_dwpose_mp4_cheek_hands = os.path.join(save_dir_smpl_render, key + '_cheek_hands.mp4')
+
             
             
             reshape_scale = 0.6
             pool = reshapePool(alpha=reshape_scale)
-            mp4_results = draw_pose_to_canvas(keypoints, pool=pool, H=height, W=width, reshape_scale=reshape_scale, points_only_flag=False, show_feet_flag=False, aug_body_draw=False)
-            # mp4_results_body_only = draw_pose_to_canvas(keypoints, pool=pool, H=height, W=width, reshape_scale=reshape_scale, points_only_flag=False, show_feet_flag=False, show_hand_flag=False, show_face_flag=False, aug_body_draw=True)
-            mp4_results_no_body = draw_pose_to_canvas(keypoints, pool=pool, H=height, W=width, reshape_scale=reshape_scale, points_only_flag=False, show_feet_flag=False, aug_body_draw=False, show_body_flag=False)
-            smpl_render_data = render_nlf_as_images(smpl_data, motion_indices)
+            motion_keypoints = [keypoints[idx] for idx in motion_indices]
+            smpl_render_data = render_nlf_as_images(smpl_data, motion_indices, out_path_smpl_render)
+            motion_reshape_results = draw_pose_to_canvas(motion_keypoints, pool=pool, H=height, W=width, reshape_scale=reshape_scale, points_only_flag=False, show_feet_flag=False, aug_body_draw=False)
+            motion_reshape_results_face_hands = draw_pose_to_canvas(motion_keypoints, pool=pool, H=height, W=width, reshape_scale=reshape_scale, points_only_flag=False, show_feet_flag=False, aug_body_draw=False, show_body_flag=False)
+            motion_noreshape_results_cheek_hands = draw_pose_to_canvas(motion_keypoints, pool=None, H=height, W=width, reshape_scale=0, points_only_flag=False, show_feet_flag=False, aug_body_draw=False, show_body_flag=False, show_face_flag=False, show_cheek_flag=True)
 
-            save_videos_from_pil(mp4_results, out_path_dwpose_mp4, fps=16) # 实际可能fps不一致，需要视频fps存，这个是否会影响训练？
-            save_videos_from_pil(smpl_render_data, out_path_smpl_render, fps=16)
-            save_videos_from_pil(mp4_results_no_body, out_path_dwpose_mp4_no_body, fps=16)
+
+            # save_videos_from_pil(motion_reshape_results, out_path_dwpose_mp4, fps=16) 
+            # save_videos_from_pil(motion_reshape_results_face_hands, out_path_dwpose_mp4_face_hands, fps=16)
+            # save_videos_from_pil(motion_noreshape_results_cheek_hands, out_path_dwpose_mp4_cheek_hands, fps=16)
+            t1 = threading.Thread(target=save_videos_from_pil,
+                      args=(motion_reshape_results, out_path_dwpose_mp4, 16))
+            t2 = threading.Thread(target=save_videos_from_pil,
+                                args=(motion_reshape_results_face_hands, out_path_dwpose_mp4_face_hands, 16))
+            t3 = threading.Thread(target=save_videos_from_pil,
+                                args=(motion_noreshape_results_cheek_hands, out_path_dwpose_mp4_cheek_hands, 16))
+            t1.start()
+            t2.start()
+            t3.start()
+            t1.join()
+            t2.join()
+            t3.join()
+
             with open(out_path_dwpose_mp4, "rb") as f:
                 dwpose_mp4_data = f.read()
             with open(out_path_smpl_render, "rb") as f:
                 smpl_render_data = f.read()
-            with open(out_path_dwpose_mp4_no_body, "rb") as f:
-                dwpose_mp4_no_body_data = f.read()
-            data['dwpose_reshape'] = dwpose_mp4_data
-            data['smpl_render'] = smpl_render_data
-            data['dwpose_reshape_no_body'] = dwpose_mp4_no_body_data
-            os.remove(out_path_dwpose_mp4_no_body)    # 清除临时文件
+            with open(out_path_dwpose_mp4_face_hands, "rb") as f:
+                dwpose_mp4_face_hands = f.read()
+            with open(out_path_dwpose_mp4_cheek_hands, "rb") as f:
+                dwpose_mp4_cheek_hands = f.read()
+            data['append_dwpose_reshape'] = dwpose_mp4_data
+            data['append_smpl_render'] = smpl_render_data
+            data['append_dwpose_reshape_face_hands'] = dwpose_mp4_face_hands
+            data['append_dwpose_noreshape_cheek_hands'] = dwpose_mp4_cheek_hands
+            os.remove(out_path_dwpose_mp4_face_hands)    # 清除临时文件
+            os.remove(out_path_dwpose_mp4_cheek_hands)    # 清除临时文件
             data.pop('motion_indices')
             writer.write(data)
     with open(output_meta_file, 'w', encoding='utf-8') as outfile:
@@ -144,9 +168,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='video_directories.yaml', 
                         help='Path to YAML configuration file')
-    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0908',
+    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0923_step3',
                         help='Input root')
-    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0924_reshape_from0908',
+    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0923_step4',
                         help='Output root')
     parser.add_argument('--max_processes', type=int, default=32,
                         help='Max processes')

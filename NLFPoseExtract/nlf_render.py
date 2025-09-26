@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import math
 from PIL import Image
-from render_3d.render_cylinder import render_colored_cylinders
+from render_3d.taichi_cylinder import render_whole
 from NLFPoseExtract.nlf_draw import intrinsic_matrix_from_field_of_view, process_data_to_COCO_format
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import torch.multiprocessing as mp
@@ -12,13 +12,13 @@ import pyrender
 import trimesh
 
 
-def render_single_pose(args):
+def get_single_pose_cylinder_specs(args):
     """渲染单个pose的辅助函数，用于并行处理"""
-    idx, pose, height, width, colors, limb_seq, draw_seq, scene = args
+    idx, pose, focal, princpt, height, width, colors, limb_seq, draw_seq = args
     final_canvas = np.zeros(shape=(height, width, 3), dtype=np.uint8)
+    cylinder_specs = []
     
     for joints3d in pose:  # 多人
-        cylinder_specs = []
         joints3d = joints3d.cpu().numpy()
         joints3d = process_data_to_COCO_format(joints3d)
         for line_idx in draw_seq:
@@ -28,14 +28,12 @@ def render_single_pose(args):
                 continue
             else:
                 cylinder_specs.append((joints3d[start], joints3d[end], colors[line_idx]))
-        canvas = render_colored_cylinders(cylinder_specs, image_size=(height, width), scene=scene)
-        final_canvas = final_canvas + canvas
-    return final_canvas
+    return cylinder_specs
     
 
 
 
-def render_nlf_as_images(data, motion_indices):
+def render_nlf_as_images(data, motion_indices, output_path):
     """ return a list of images """
     height, width = data['video_height'], data['video_width']
     video_length = data['video_length']
@@ -122,30 +120,15 @@ def render_nlf_as_images(data, motion_indices):
     poses = data['pose']['joints3d_nonparam']
 
 
-    # 初始化场景
-    scene = pyrender.Scene(bg_color=[0, 0, 0, 0], ambient_light=[0.1, 0.1, 0.1])
-
-    # 设置相机
-    camera = pyrender.IntrinsicsCamera(fx=focal, fy=focal, cx=princpt[0], cy=princpt[1], znear=0.5, zfar=10000)
-    pyrender2opencv = np.array([[1.0, 0, 0, 0],
-                                 [0, -1, 0, 0],
-                                 [0, 0, -1, 0],
-                                 [0, 0, 0, 1]])
-    cam_pose = pyrender2opencv @ np.eye(4)
-    scene.add(camera, pose=cam_pose)
-
-    # 添加光源
-    light = pyrender.DirectionalLight(color=np.ones(3), intensity=3.0)
-    scene.add(light, pose=cam_pose)
+    
 
     # 串行
+    cylinder_specs_list = []
     for i in range(video_length):
         if i in motion_indices:
-            canvas = render_single_pose((i, poses[i], height, width, colors, limb_seq, draw_seq, scene))
-            vis_images.append(Image.fromarray(canvas))
-        else:
-            canvas = np.zeros(shape=(height, width, 3), dtype=np.uint8)
-            vis_images.append(Image.fromarray(canvas))
+            cylinder_specs = get_single_pose_cylinder_specs((i, poses[i], focal, princpt, height, width, colors, limb_seq, draw_seq))
+            cylinder_specs_list.append(cylinder_specs)
+    render_whole(cylinder_specs_list, H=height, W=width, fx=focal, fy=focal, cx=princpt[0], cy=princpt[1], output_path=output_path)
 
 
     return vis_images

@@ -26,7 +26,7 @@ def draw_pose_points_only(pose, H, W, show_feet=False):
     raise NotImplementedError("draw_pose_points_only is not implemented")
 
 
-def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_face=True, dw_bgr=False, dw_hand=False, aug_body_draw=False):
+def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_face=True, show_cheek=False, dw_bgr=False, dw_hand=False, aug_body_draw=False):
     final_canvas = np.zeros(shape=(H, W, 3), dtype=np.uint8)
     for i in range(len(pose["bodies"]["candidate"])):
         canvas = np.zeros(shape=(H, W, 3), dtype=np.uint8)
@@ -52,6 +52,11 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_
                 canvas = util.draw_bodypose_with_feet(canvas, candidate, subset)
             if dw_bgr:
                 canvas = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
+        if show_cheek:
+            assert show_body == False, "show_cheek and show_body cannot be True at the same time"
+            subset_copy = subset.copy()
+            subset_copy[:, 1:14] = -1
+            canvas = util.draw_bodypose(canvas, candidate, subset_copy)
         if show_hand:
             if not dw_hand:
                 canvas = util.draw_handpose_lr(canvas, hands)
@@ -62,12 +67,12 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_
         final_canvas = final_canvas + canvas
     return final_canvas
 
-def draw_pose_to_canvas(poses, pool, H, W, reshape_scale, points_only_flag, show_feet_flag, show_body_flag=True, show_hand_flag=True, show_face_flag=True, dw_bgr=False, dw_hand=False, aug_body_draw=False):
+def draw_pose_to_canvas(poses, pool, H, W, reshape_scale, points_only_flag, show_feet_flag, show_body_flag=True, show_hand_flag=True, show_face_flag=True, show_cheek_flag=False, dw_bgr=False, dw_hand=False, aug_body_draw=False):
     canvas_lst = []
     for pose in poses:
         if reshape_scale > 0:
             pool.apply_random_reshapes(pose)
-        canvas = draw_pose(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag, dw_bgr, dw_hand, aug_body_draw)
+        canvas = draw_pose(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag, show_cheek_flag, dw_bgr, dw_hand, aug_body_draw)
         canvas_img = Image.fromarray(canvas)
         canvas_lst.append(canvas_img)
     return canvas_lst
