@@ -34,6 +34,8 @@ import glob
 import pickle
 import copy
 from NLFPoseExtract.nlf_render import render_nlf_as_images
+import traceback
+import taichi as ti
 
 def process_fn_video(src, meta_dict=None):
     worker_info = torch.utils.data.get_worker_info()
@@ -62,12 +64,17 @@ def process_fn_video(src, meta_dict=None):
         yield item
 
 def reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render):
+    obj_list = []
     meta_dict = {}
     meta_file = wds_path.replace('.tar', '.meta.jsonl')
     meta_lines = open(meta_file).readlines()
     tmp_dir = '/dev/shm/tmp'
     os.makedirs(os.path.join(tmp_dir, 'faces_hands'), exist_ok=True)
     os.makedirs(os.path.join(tmp_dir, 'cheek_hands'), exist_ok=True)
+    ti.reset()       # 清理taichi的缓存
+    tarname = os.path.basename(wds_path).replace('.tar', '')    
+    ti.init(arch=ti.cuda, offline_cache_file_path=f'{tmp_dir}/{tarname}')
+
     for meta_line in meta_lines:
         meta_line = meta_line.strip()
         try:
@@ -84,6 +91,8 @@ def reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_di
             partial(process_fn_video, meta_dict=meta_dict),
         )
     dataloader = DataLoader(dataset, batch_size=1, num_workers=2, shuffle=False, collate_fn=lambda x: x[0])
+    if os.path.exists(output_wds_path):   # 提前清除旧tar
+        os.remove(output_wds_path)
     with TarWriter(output_wds_path) as writer:
         for data in tqdm(dataloader):
             key = data['__key__']
@@ -144,11 +153,13 @@ def reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_di
             os.remove(out_path_dwpose_mp4_face_hands)    # 清除临时文件
             os.remove(out_path_dwpose_mp4_cheek_hands)    # 清除临时文件
             data.pop('motion_indices')
+            obj_list.append(meta_dict.get(key, None))
             writer.write(data)
     with open(output_meta_file, 'w', encoding='utf-8') as outfile:
         writer = jsonlines.Writer(outfile)
-        writer.write_all(meta_dict)
+        writer.write_all(obj_list)
         writer.close()
+        
 
 def process_tar_chunk(chunk, input_root, output_root, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render):
     for wds_path in chunk:
@@ -172,8 +183,10 @@ if __name__ == "__main__":
                         help='Input root')
     parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0923_step4',
                         help='Output root')
-    parser.add_argument('--max_processes', type=int, default=32,
+    parser.add_argument('--max_processes', type=int, default=8,
                         help='Max processes')
+    parser.add_argument('--current_process', type=int, default=0,
+                        help='Current process')
 
     args = parser.parse_args()
     config = load_config(args.config)
@@ -198,30 +211,16 @@ if __name__ == "__main__":
 
     input_dir = os.path.join(args.input_root, os.path.basename(os.path.normpath(video_root)))
     output_dir = os.path.join(args.output_root, os.path.basename(os.path.normpath(video_root)))
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
     os.makedirs(output_dir, exist_ok=True)
     # Split wds_list into chunks
-    input_tar_paths = glob.glob(os.path.join(input_dir, "**", "*.tar"), recursive=True)
-    chunk_size = len(input_tar_paths) // max_processes
-    if len(input_tar_paths) % max_processes != 0:
-        chunk_size += 1
-    chunks = [input_tar_paths[i:i + chunk_size] for i in range(0, len(input_tar_paths), chunk_size)]
+    input_tar_paths = sorted(glob.glob(os.path.join(input_dir, "**", "*.tar"), recursive=True))
 
-    # 测试
-    # process_tar_chunk(chunks[0], input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render)
-    
-    for chunk_idx, chunk in enumerate(chunks):
-        p = Process(
-            target=process_tar_chunk,
-            args=(chunk, input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render)
-        )
-        p.start()
-        processes.append(p)
+    current_process = args.current_process
+    current_tar_paths = input_tar_paths[current_process::max_processes]
+    if len(current_tar_paths) == 0:
+        print("No chunks to process")
+    process_tar_chunk(current_tar_paths, input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render)
 
-    for p in processes:
-        p.join()
-        gc.collect()
 
 
 

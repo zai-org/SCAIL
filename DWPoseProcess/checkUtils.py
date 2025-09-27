@@ -50,7 +50,7 @@ def get_IoU(boxA, boxB):
 
     return iou
 
-def check_bbox_single_for_video(bbox, reference_width, reference_height, center_check=True):
+def check_bbox_single_for_video(bbox, reference_width, reference_height, min_bbox_width=1/6, min_bbox_area=1/30):
     """
     每一帧都要检查，判断 bbox 是否符合视频格式下的要求
     """
@@ -64,26 +64,15 @@ def check_bbox_single_for_video(bbox, reference_width, reference_height, center_
 
     bbox_area = bbox_width * bbox_height
 
-    min_bbox_area = 1 / 40
-    max_bbox_area = 4 / 5
-    if bbox_area < min_bbox_area or bbox_area > max_bbox_area:
+    if bbox_area < min_bbox_area:
         # print("filtered: bbox too small or too large")
         return False
 
     # 横屏额外筛
     if reference_width > reference_height:
-        max_bbox_width = 2 / 3
-        if bbox_width > max_bbox_width:
+        if bbox_width < min_bbox_width:
             # print("filtered: bbox too wide")
             return False
-        if center_check:
-            center_x = (x1 + x2) / 2
-            left_limit = 1 / 5
-            right_limit = 4 / 5
-            if not (left_limit <= center_x <= right_limit):
-                # print("filtered: bbox not in center")
-                return False
-        
     return True
 
 
@@ -206,11 +195,11 @@ def check_from_keypoints_bbox(keypoints, bboxs, IoU_thresthold, reference_width,
         else:
             if multi_person:
                 for bbox in bbox_all:
-                    if not check_bbox_single_for_video(bbox, reference_width, reference_height, center_check=False):
+                    if not check_bbox_single_for_video(bbox, reference_width, reference_height, min_bbox_width=1/6):
                         return False
             else:
                 bbox = bbox_all[0]
-                if not check_bbox_single_for_video(bbox, reference_width, reference_height):
+                if not check_bbox_single_for_video(bbox, reference_width, reference_height, min_bbox_width=1/7):
                     return False   # bbox大小异常
                 if last_bbox is not None:
                     if not get_IoU(bbox, last_bbox) > IoU_thresthold:

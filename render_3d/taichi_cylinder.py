@@ -7,7 +7,6 @@ import time
 import imageio
 from pose_draw.draw_pose_main import save_videos_from_pil
 ti.init(arch=ti.cuda)
-print("Taichi runtime arch:", ti.lang.impl.current_cfg().arch)
 
 def flatten_specs(specs_list):
     """把 specs_list 拉平为 numpy 数组 + 索引表"""

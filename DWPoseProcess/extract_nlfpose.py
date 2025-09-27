@@ -33,9 +33,34 @@ import math
 import glob
 import pickle
 import copy
-from NLFPoseExtract.nlf_render import render_nlf_as_images
-from NLFPoseExtract.process_nlf import process_video_nlf, preview_nlf_as_images
 import decord
+
+
+def process_video_nlf(model, vr_frames, video_height, video_width):
+    # Ensure output directory exists
+    pose_results = {
+        'joints3d_nonparam': [],
+    }
+
+    with torch.inference_mode(), torch.device('cuda'):
+        batch_size = 64
+        for i in range(0, len(vr_frames), batch_size):
+            frame_batch = vr_frames[i:i+batch_size].cuda().permute(0,3,1,2)
+            pred = model.detect_smpl_batched(frame_batch)
+            if 'joints3d_nonparam' in pred:
+                #pose_results[key].append(pred[key].cpu().numpy())
+                pose_results['joints3d_nonparam'].extend(pred['joints3d_nonparam'])
+            else:
+                pose_results['joints3d_nonparam'].extend([None] * len(pred['joints3d_nonparam']))
+
+    # Prepare output data
+    output_data = {
+        'video_length': len(vr_frames),
+        'video_width': video_width,
+        'video_height': video_height,
+        'pose': pose_results
+    }
+    return output_data
 
 # 总体逻辑：从wds中读视频，然后存一个3d kpts 字典到 pt文件
 # 同时要存2D可视化之后的NLF -> 全部存放

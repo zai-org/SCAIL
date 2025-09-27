@@ -15,7 +15,6 @@ import trimesh
 def get_single_pose_cylinder_specs(args):
     """渲染单个pose的辅助函数，用于并行处理"""
     idx, pose, focal, princpt, height, width, colors, limb_seq, draw_seq = args
-    final_canvas = np.zeros(shape=(height, width, 3), dtype=np.uint8)
     cylinder_specs = []
     
     for joints3d in pose:  # 多人
@@ -128,6 +127,11 @@ def render_nlf_as_images(data, motion_indices, output_path):
         if i in motion_indices:
             cylinder_specs = get_single_pose_cylinder_specs((i, poses[i], focal, princpt, height, width, colors, limb_seq, draw_seq))
             cylinder_specs_list.append(cylinder_specs)
+
+    total_count = sum(len(sublist) for sublist in cylinder_specs_list)
+    if total_count == 0:
+        print(f"total_count is 0, output_path: {output_path}, motion_indices: {motion_indices}")
+        return None
     render_whole(cylinder_specs_list, H=height, W=width, fx=focal, fy=focal, cx=princpt[0], cy=princpt[1], output_path=output_path)
 
 
