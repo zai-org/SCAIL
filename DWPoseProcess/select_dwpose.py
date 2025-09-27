@@ -200,7 +200,7 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
                     joints3d = ori_smpl['pose']['joints3d_nonparam']
                     joints3d = [joints3d[i] for i in final_motion_indices]
                     motion_speed = compute_motion_speed(joints3d)
-                    if motion_speed is None or motion_speed < 16:
+                    if motion_speed is None or motion_speed < 20:
                         start_index += random.randint(3, 4)
                         continue
                     else:

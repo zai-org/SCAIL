@@ -209,19 +209,19 @@ if __name__ == "__main__":
     chunks = [input_tar_paths[i:i + chunk_size] for i in range(0, len(input_tar_paths), chunk_size)]
 
     # 测试
-    process_tar_chunk(chunks[0], input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render)
+    # process_tar_chunk(chunks[0], input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render)
     
-    # for chunk_idx, chunk in enumerate(chunks):
-    #     p = Process(
-    #         target=process_tar_chunk,
-    #         args=(chunk, input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl)
-    #     )
-    #     p.start()
-    #     processes.append(p)
+    for chunk_idx, chunk in enumerate(chunks):
+        p = Process(
+            target=process_tar_chunk,
+            args=(chunk, input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render)
+        )
+        p.start()
+        processes.append(p)
 
-    # for p in processes:
-    #     p.join()
-    #     gc.collect()
+    for p in processes:
+        p.join()
+        gc.collect()
 
 
 
