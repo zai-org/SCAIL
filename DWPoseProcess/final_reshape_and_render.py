@@ -116,15 +116,14 @@ def reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_di
             reshape_scale = 0.6
             pool = reshapePool(alpha=reshape_scale)
             motion_keypoints = [keypoints[idx] for idx in motion_indices]
-            smpl_render_data = render_nlf_as_images(smpl_data, motion_indices, out_path_smpl_render)
-            motion_reshape_results = draw_pose_to_canvas(motion_keypoints, pool=pool, H=height, W=width, reshape_scale=reshape_scale, points_only_flag=False, show_feet_flag=False, aug_body_draw=False)
-            motion_reshape_results_face_hands = draw_pose_to_canvas(motion_keypoints, pool=pool, H=height, W=width, reshape_scale=reshape_scale, points_only_flag=False, show_feet_flag=False, aug_body_draw=False, show_body_flag=False)
-            motion_noreshape_results_cheek_hands = draw_pose_to_canvas(motion_keypoints, pool=None, H=height, W=width, reshape_scale=0, points_only_flag=False, show_feet_flag=False, aug_body_draw=False, show_body_flag=False, show_face_flag=False, show_cheek_flag=True)
-
+            motion_reshape_results = draw_pose_to_canvas(copy.deepcopy(motion_keypoints), pool=pool, H=height, W=width, reshape_scale=reshape_scale, points_only_flag=False, show_feet_flag=False, aug_body_draw=False)
+            motion_reshape_results_face_hands = draw_pose_to_canvas(copy.deepcopy(motion_keypoints), pool=pool, H=height, W=width, reshape_scale=reshape_scale, points_only_flag=False, show_feet_flag=False, aug_body_draw=False, show_body_flag=False)
+            motion_noreshape_results_cheek_hands = draw_pose_to_canvas(copy.deepcopy(motion_keypoints), pool=None, H=height, W=width, reshape_scale=0, points_only_flag=False, show_feet_flag=False, aug_body_draw=False, show_body_flag=False, show_face_flag=False, show_cheek_flag=True)
 
             # save_videos_from_pil(motion_reshape_results, out_path_dwpose_mp4, fps=16) 
             # save_videos_from_pil(motion_reshape_results_face_hands, out_path_dwpose_mp4_face_hands, fps=16)
             # save_videos_from_pil(motion_noreshape_results_cheek_hands, out_path_dwpose_mp4_cheek_hands, fps=16)
+            
             t1 = threading.Thread(target=save_videos_from_pil,
                       args=(motion_reshape_results, out_path_dwpose_mp4, 16))
             t2 = threading.Thread(target=save_videos_from_pil,
@@ -134,6 +133,8 @@ def reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_di
             t1.start()
             t2.start()
             t3.start()
+            smpl_render_data = render_nlf_as_images(smpl_data, motion_indices, out_path_smpl_render)
+            
             t1.join()
             t2.join()
             t3.join()
@@ -166,6 +167,7 @@ def process_tar_chunk(chunk, input_root, output_root, save_dir_keypoints, save_d
         rel_path = os.path.relpath(wds_path, input_root)
         output_wds_path = os.path.join(output_root, rel_path)
         reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render)
+        gc.collect()
     
 def load_config(config_path):
     with open(config_path, 'r') as f:

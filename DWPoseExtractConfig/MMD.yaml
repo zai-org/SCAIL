@@ -1,0 +1,9 @@
+# 处理进度见/workspace/ywh_data/DataProcess/ProcessDataViaAPI/process_config.yaml
+video_root: "/workspace/ywh_data/DataProcessNew/MMD"
+wds_root: "/workspace/data1/video_and_image_datas/processed_videos_wds_datas/mmd_shoushiwu/MMD"
+max_detector_threads: 4
+
+filter_args:
+  use_filter: True
+  save_mp4: True
+  use_fail_prompt: True

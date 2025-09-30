@@ -187,7 +187,7 @@ def random_cylinder():
     # 随机方向和长度
     theta = random.uniform(0, 2*math.pi)
     phi = random.uniform(-math.pi/4, math.pi/4)  # 倾斜角
-    L = random.uniform(50, 150)  # 长度
+    L = 100
     dx = math.cos(phi) * math.cos(theta)
     dy = math.cos(phi) * math.sin(theta)
     dz = math.sin(phi)
@@ -204,7 +204,9 @@ def generate_specs_list(num_frames=120, min_cyl=10, max_cyl=120):
     for _ in range(num_frames):
         n_cyl = random.randint(min_cyl, max_cyl)
         specs = [random_cylinder() for _ in range(n_cyl)]
+        specs_x_shift = [([spec[0][0] + 50, spec[0][1], spec[0][2]], [spec[1][0] + 50, spec[1][1], spec[1][2]], spec[2]) for spec in specs]
         specs_list.append(specs)
+        specs_list.append(specs_x_shift)
     return specs_list
 
 

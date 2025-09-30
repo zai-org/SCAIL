@@ -4,7 +4,6 @@ from pathlib import Path
 import multiprocessing
 import numpy as np
 import time
-from dwpose import DWposeDetector
 from DWPoseProcess.AAUtils import save_videos_from_pil
 from DWPoseProcess.checkUtils import *
 from collections import deque
@@ -12,7 +11,6 @@ import shutil
 import torch
 import yaml
 from pose_draw.draw_pose_main import draw_pose_to_canvas, reshapePool
-from extractUtils import check_single_human_requirements, check_multi_human_requirements, human_select
 import webdataset as wds
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -62,8 +60,6 @@ def process_video_nlf(model, vr_frames, video_height, video_width):
     }
     return output_data
 
-# 总体逻辑：从wds中读视频，然后存一个3d kpts 字典到 pt文件
-# 同时要存2D可视化之后的NLF -> 全部存放
 
 def process_fn_video(src):
     worker_info = torch.utils.data.get_worker_info()

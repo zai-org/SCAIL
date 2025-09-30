@@ -1,0 +1,10 @@
+# 处理进度见/workspace/ywh_data/DataProcess/ProcessDataViaAPI/process_config.yaml
+video_root: "/workspace/ywh_data/DataProcessNew/sucai_istock_250326_3"
+wds_root: "/workspace/data1/video_and_image_datas/processed_videos_wds_datas/stock_video/sucai_istock_250326_3"
+max_samples_per_gpu: 50000
+max_detector_threads: 4
+
+filter_args:
+  use_filter: True
+  save_mp4: True
+  use_fail_prompt: True
