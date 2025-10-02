@@ -142,9 +142,9 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
         target_fps = 16
 
         H, W = height, width
-        max_slide_attempts = 30
+        max_slide_attempts = 80
         # 定义可选的 motion_part_len 值
-        possible_lengths = [49, 65, 81, 130, 146, 162, 200]
+        possible_lengths = [65, 81, 162]
         if use_filter:
             pick_indices = np.arange(2, len(ori_poses)-2, fps / target_fps).astype(int)  # 比如orilist 0-10， downsample成 newlist [0 2 4 6 8], 那么newlist[1] 对应原来 orilist[2]，直接用即可 需要去掉前后两帧
         else:
@@ -153,7 +153,7 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
         poses = [ori_poses[index] for index in pick_indices]
         bboxes = [ori_bboxes[index] for index in pick_indices]
         smpl_extracted_data = [smpl_data[index] for index in pick_indices]
-        valid_lengths = [length for length in possible_lengths if length < len(poses) - 1]
+        valid_lengths = [length for length in possible_lengths if length <= len(poses)]
         valid_lengths.sort(reverse=True)
         final_motion_indices = None
         check_2d_3d_match_result, nozero_t_result = check_2d_3d_match(poses.copy(), H, W, smpl_extracted_data, multi_person)   # 取了Pick_indices之后的t

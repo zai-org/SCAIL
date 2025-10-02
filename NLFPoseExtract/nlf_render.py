@@ -3,14 +3,15 @@ import numpy as np
 import math
 from PIL import Image
 from render_3d.taichi_cylinder import render_whole
-from NLFPoseExtract.nlf_draw import intrinsic_matrix_from_field_of_view, process_data_to_COCO_format
+from NLFPoseExtract.nlf_draw import intrinsic_matrix_from_field_of_view, process_data_to_COCO_format, preview_nlf_2d
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from DWPoseProcess.dwpose.util import draw_bodypose, draw_handpose
 import torch.multiprocessing as mp
 import os
 os.environ['PYOPENGL_PLATFORM'] = 'osmesa'
 import pyrender
 import trimesh
-
+import copy
 
 def get_single_pose_cylinder_specs(args):
     """渲染单个pose的辅助函数，用于并行处理"""
@@ -32,7 +33,7 @@ def get_single_pose_cylinder_specs(args):
 
 
 
-def render_nlf_as_images(data, motion_indices, output_path):
+def render_nlf_as_images(data, motion_indices, dwpose_kpt_seq=None, reshape_pool=None):
     """ return a list of images """
     height, width = data['video_height'], data['video_width']
     video_length = data['video_length']
@@ -112,27 +113,60 @@ def render_nlf_as_images(data, motion_indices, output_path):
                 ]   # 从近心端往外扩展
 
     colors = [[c / 300 + 0.15 for c in color_rgb] + [0.8] for color_rgb in ordered_colors_255]
-    vis_images = []
     intrinsic_matrix = intrinsic_matrix_from_field_of_view((height, width))
     focal = intrinsic_matrix[0,0]
     princpt = (intrinsic_matrix[0,2], intrinsic_matrix[1,2])  # 主点 (cx, cy)
-    poses = data['pose']['joints3d_nonparam']
+    smpl_poses = data['pose']['joints3d_nonparam']
 
+    # 获取min_z
+    min_z = float('inf')
+    for frame_idx in range(len(smpl_poses)):
+        for person_idx in range(len(smpl_poses[frame_idx])):
+            for joint_idx in range(len(smpl_poses[frame_idx][person_idx])):
+                z_value = smpl_poses[frame_idx][person_idx][joint_idx][2].item()
+                if z_value < min_z:
+                    min_z = z_value
 
-    
+    if reshape_pool is not None:
+        reshape_pool.set_offset_3d_z(min_z)
+        for i in range(video_length):
+            if i in motion_indices:
+                joints_list = smpl_poses[i]
+                dwpose = dwpose_kpt_seq[i]
+                reshape_pool.apply_random_reshapes(joints_list, dwpose)   # 对joints_list和dwpose应用形变
+                smpl_poses[i] = joints_list
+                dwpose_kpt_seq[i] = dwpose
 
     # 串行
     cylinder_specs_list = []
     for i in range(video_length):
         if i in motion_indices:
-            cylinder_specs = get_single_pose_cylinder_specs((i, poses[i], focal, princpt, height, width, colors, limb_seq, draw_seq))
+            cylinder_specs = get_single_pose_cylinder_specs((i, smpl_poses[i], focal, princpt, height, width, colors, limb_seq, draw_seq))
             cylinder_specs_list.append(cylinder_specs)
 
-    total_count = sum(len(sublist) for sublist in cylinder_specs_list)
-    if total_count == 0:
-        print(f"total_count is 0, output_path: {output_path}, motion_indices: {motion_indices}")
-        return None
-    render_whole(cylinder_specs_list, H=height, W=width, fx=focal, fy=focal, cx=princpt[0], cy=princpt[1], output_path=output_path)
 
 
-    return vis_images
+    data['pose']['joints3d_nonparam'] = [smpl_poses[i] for i in motion_indices]
+    frames_np_rgba = render_whole(cylinder_specs_list, H=height, W=width, fx=focal, fy=focal, cx=princpt[0], cy=princpt[1])
+    PIL_frames = []
+    PIL_frames_dw = []
+    for idx, frame_np in enumerate(frames_np_rgba):
+        frame_np = frame_np[:, :, :3]
+        final_dw_canvas = np.zeros((height, width, 3), dtype=np.uint8)
+        dwpose = dwpose_kpt_seq[idx]
+        for i in range(len(dwpose["bodies"]["candidate"])):
+            bodies = dwpose["bodies"]
+            candidate = bodies["candidate"][i]
+            subset = bodies["subset"][i:i+1]   # subset是认为的有效点
+            subset[:, 1:14] = -1
+            hands = dwpose["hands"][2*i:2*i+2]
+
+            canvas = np.zeros((height, width, 3), dtype=np.uint8)
+            canvas = draw_bodypose(canvas, candidate, subset)
+            canvas = draw_handpose(canvas, hands)
+            final_dw_canvas = final_dw_canvas + canvas
+        PIL_frames.append(Image.fromarray(frame_np))
+        PIL_frames_dw.append(Image.fromarray(final_dw_canvas))
+
+
+    return PIL_frames, PIL_frames_dw

@@ -62,11 +62,11 @@ def p3d_to_p2d(point_3d, height, width):    # point3d n*num_points*3
     point_2d[:,:,:2] = point_2d[:,:,:2]/point_2d[:,:,2:3]  # 相对位置
     return point_2d[:,:,:]      # n*num_points*2
 
-def preview_nlf_as_images(data):
+def preview_nlf_2d(data):
     """ return a list of images """
     height, width = data['video_height'], data['video_width']
     offset = [height, width, 0]
-    vis_images = []
+    np_images = []
     for image_result in data['pose']['joints3d_nonparam']:
         final_canvas = np.zeros(shape=(offset[0], offset[1], 3), dtype=np.uint8)
         for joints3d in image_result:  # 每个人的pose
@@ -80,7 +80,6 @@ def preview_nlf_as_images(data):
             subset = np.expand_dims(np.concatenate([np.arange(14), [-1, -1, -1, -1]]), axis=0)
             canvas = draw_bodypose(canvas, joints2d, subset)
             final_canvas = final_canvas + canvas
-        vis_images.append(Image.fromarray(final_canvas))
+        np_images.append(final_canvas)
 
-
-    return vis_images
+    return np_images
