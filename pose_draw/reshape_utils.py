@@ -1,7 +1,7 @@
 import numpy as np
 import random
 
-def pose_offset(offset_x, offset_y, pose):
+def pose_offset(offset_x, offset_y, pose, vitposes):
     for i in range(len(pose["bodies"]["candidate"])):
         bodies = pose["bodies"]
         faces = pose["faces"][i]
@@ -35,8 +35,14 @@ def pose_offset(offset_x, offset_y, pose):
             body_point[0] = body_point[0] + offset_x
             body_point[1] = body_point[1] + offset_y
 
+    if vitposes is not None:
+        for vitpose in vitposes:
+            vitpose['keypoints_body'] = vitpose['keypoints_body'] + np.array([offset_x, offset_y, 0])
+            vitpose['keypoints_left_hand'] = vitpose['keypoints_left_hand'] + np.array([offset_x, offset_y, 0])
+            vitpose['keypoints_right_hand'] = vitpose['keypoints_right_hand'] + np.array([offset_x, offset_y, 0])
 
-def pose_whole_scale(scale_x, scale_y, pose):   # 目前仅能用于单人
+
+def pose_whole_scale(scale_x, scale_y, pose, vitposes):   # 目前仅能用于单人
     # 获取最左端的x 最右端的x 最上端的y 最下端的y
     min_x = float('inf')
     max_x = float('-inf')
@@ -112,9 +118,52 @@ def pose_whole_scale(scale_x, scale_y, pose):   # 目前仅能用于单人
             right_hand_point[0] = right_hand_point[0] + (right_hand_point[0] - bbox_center_x) * scale_x
             right_hand_point[1] = right_hand_point[1] + (right_hand_point[1] - bbox_center_y) * scale_y
 
+    if vitposes is not None:
+        min_x = float('inf')
+        max_x = float('-inf')
+        min_y = float('inf')
+        max_y = float('-inf')
+        if len(vitposes) > 1:
+            return
+        for vitpose in vitposes:
+            for body_point in vitpose['keypoints_body']:
+                if body_point[2] < 0.4:
+                    continue
+                min_x = min(min_x, body_point[0])
+                max_x = max(max_x, body_point[0])
+                min_y = min(min_y, body_point[1])
+                max_y = max(max_y, body_point[1])
+            for left_hand_point in vitpose['keypoints_left_hand']:
+                if left_hand_point[2] < 0.4:
+                    continue
+                min_x = min(min_x, left_hand_point[0])
+                max_x = max(max_x, left_hand_point[0])
+                min_y = min(min_y, left_hand_point[1])
+                max_y = max(max_y, left_hand_point[1])
+            for right_hand_point in vitpose['keypoints_right_hand']:
+                if right_hand_point[2] < 0.4:
+                    continue
+                min_x = min(min_x, right_hand_point[0])
+                max_x = max(max_x, right_hand_point[0])
+                min_y = min(min_y, right_hand_point[1])
+                max_y = max(max_y, right_hand_point[1])
+            bbox_center_x = (min_x + max_x) / 2
+            bbox_center_y = (min_y + max_y) / 2
+            for body_point in vitpose['keypoints_body']:
+                body_point[0] = body_point[0] + (body_point[0] - bbox_center_x) * scale_x
+                body_point[1] = body_point[1] + (body_point[1] - bbox_center_y) * scale_y
+            for left_hand_point in vitpose['keypoints_left_hand']:
+                left_hand_point[0] = left_hand_point[0] + (left_hand_point[0] - bbox_center_x) * scale_x
+                left_hand_point[1] = left_hand_point[1] + (left_hand_point[1] - bbox_center_y) * scale_y
+            for right_hand_point in vitpose['keypoints_right_hand']:
+                right_hand_point[0] = right_hand_point[0] + (right_hand_point[0] - bbox_center_x) * scale_x
+                right_hand_point[1] = right_hand_point[1] + (right_hand_point[1] - bbox_center_y) * scale_y
+
+
+
 
 # 如果做多人增强，需要修改逻辑，每个人都有随机性，现在都是做单人增强，增强方法一致
-def pose_reshape(alpha, pose, 
+def pose_reshape(alpha, pose, vitposes,
                  anchor_point, anchor_part, end_point, end_part, 
                  affected_body_points, affected_faces_points, affected_left_hands_points, affected_right_hands_points):
     """
@@ -177,6 +226,45 @@ def pose_reshape(alpha, pose,
                 continue
             right_hand[affected_hands_point] = [affected_x + offset_x, affected_y + offset_y]
 
+    if vitposes is not None:
+        vit_visible_threshold = 0.5
+        for vitpose in vitposes:
+            assert anchor_part == 0, "anchor part must belong to the body"
+            anchor_x, anchor_y, _ = vitpose['keypoints_body'][anchor_point]
+            if vitpose['keypoints_body'][anchor_point][2] < vit_visible_threshold:
+                continue
+            if end_part == 0:
+                end_x, end_y, _ = vitpose['keypoints_body'][end_point]
+                if vitpose['keypoints_body'][end_point][2] < vit_visible_threshold:
+                    continue
+            # 不考虑hands
+            elif end_part == 1:
+                continue       # ViTPose的脸不动
+
+            vector_x = end_x - anchor_x
+            vector_y = end_y - anchor_y
+            offset_x = vector_x * alpha
+            offset_y = vector_y * alpha
+
+            for affected_body_point in affected_body_points:
+                if vitpose['keypoints_body'][affected_body_point][2] < vit_visible_threshold:
+                    continue
+                vitpose['keypoints_body'][affected_body_point][0] = vitpose['keypoints_body'][affected_body_point][0] + offset_x
+                vitpose['keypoints_body'][affected_body_point][1] = vitpose['keypoints_body'][affected_body_point][1] + offset_y
+            # 左右标记相反，需要互换
+            for affected_left_hand_point in affected_left_hands_points:
+                if vitpose['keypoints_right_hand'][affected_left_hand_point][2] < vit_visible_threshold:
+                    continue
+                vitpose['keypoints_right_hand'][affected_left_hand_point][0] = vitpose['keypoints_right_hand'][affected_left_hand_point][0] + offset_x
+                vitpose['keypoints_right_hand'][affected_left_hand_point][1] = vitpose['keypoints_right_hand'][affected_left_hand_point][1] + offset_y
+            for affected_right_hand_point in affected_right_hands_points:
+                if vitpose['keypoints_left_hand'][affected_right_hand_point][2] < vit_visible_threshold:
+                    continue
+                vitpose['keypoints_left_hand'][affected_right_hand_point][0] = vitpose['keypoints_left_hand'][affected_right_hand_point][0] + offset_x
+                vitpose['keypoints_left_hand'][affected_right_hand_point][1] = vitpose['keypoints_left_hand'][affected_right_hand_point][1] + offset_y
+            
+
+
 # reshapePool只负责形变，骨骼偏移、丢弃等得从draw层来做
 class reshapePool:
     def __init__(self, alpha):  # 对每个视频只初始化一次
@@ -199,158 +287,158 @@ class reshapePool:
         ]
         self.scale_reshape_methods = [
             self.offset_wholebody,
-            self.scale_wholebody,
+            # self.scale_wholebody,
             self.dilate_face,
             self.shrink_face,
         ]
         self.selected_methods = random.sample(self.body_reshape_methods, 2) + random.sample(self.scale_reshape_methods, 1)
 
-    def apply_random_reshapes(self, pose):
+    def apply_random_reshapes(self, pose, vitposes=None):
         # Apply the two selected reshape methods
         for method in self.selected_methods:
-            method(pose)
+            method(pose, vitposes)
 
-    def offset_wholebody(self, pose):
-        pose_offset(self.offset_x, self.offset_y, pose)
+    def offset_wholebody(self, pose, vitposes):
+        pose_offset(self.offset_x, self.offset_y, pose, vitposes)
 
-    def scale_wholebody(self, pose):
-        pose_whole_scale(self.scale_x, self.scale_y, pose)
+    def scale_wholebody(self, pose, vitposes):
+        pose_whole_scale(self.scale_x, self.scale_y, pose, vitposes)
 
 
-    def extend_body(self, pose):
-        pose_reshape(self.alpha, pose,
+    def extend_body(self, pose, vitposes):
+        pose_reshape(self.alpha, pose, vitposes,
                      1, 0, 8, 0,
                      [8, 9, 10], [], [], []
                      )
-        pose_reshape(self.alpha, pose,
+        pose_reshape(self.alpha, pose, vitposes,
                     1, 0, 11, 0,
                     [11, 12, 13], [], [], []
                     )
         
-    def shrink_body(self, pose):
-        pose_reshape(-self.alpha, pose,
+    def shrink_body(self, pose, vitposes):
+        pose_reshape(-self.alpha, pose, vitposes,
                      1, 0, 8, 0,
                      [8, 9, 10], [], [], []
                      )
-        pose_reshape(-self.alpha, pose,
+        pose_reshape(-self.alpha, pose, vitposes,
                     1, 0, 11, 0,
                     [11, 12, 13], [], [], []
                     )
         
-    def extend_arm(self, pose):
-        pose_reshape(self.alpha, pose,
+    def extend_arm(self, pose, vitposes):
+        pose_reshape(self.alpha, pose, vitposes,
                      2, 0, 3, 0,
                      [3, 4], [], self.left_hands_indices, []
                      )
-        pose_reshape(self.alpha, pose,
+        pose_reshape(self.alpha, pose, vitposes,
                     5, 0, 6, 0,
                     [6, 7], [], [], self.right_hands_indices
                     )
-        pose_reshape(self.alpha, pose,
+        pose_reshape(self.alpha, pose, vitposes,
                      3, 0, 4, 0,
                      [4], [], self.left_hands_indices, []
                      )
-        pose_reshape(self.alpha, pose,
+        pose_reshape(self.alpha, pose, vitposes,
                     6, 0, 7, 0,
                     [7], [], [], self.right_hands_indices
                     )
             
-    def shrink_arm(self, pose):
-        pose_reshape(-self.alpha, pose,
+    def shrink_arm(self, pose, vitposes):
+        pose_reshape(-self.alpha, pose, vitposes,
                      2, 0, 3, 0,
                      [3, 4], [], self.left_hands_indices, []
                      )
-        pose_reshape(-self.alpha, pose,
+        pose_reshape(-self.alpha, pose, vitposes,
                     5, 0, 6, 0,
                     [6, 7], [], [], self.right_hands_indices
                     )
-        pose_reshape(-self.alpha, pose,
+        pose_reshape(-self.alpha, pose, vitposes,
                      3, 0, 4, 0,
                      [4], [], self.left_hands_indices, []
                      )
-        pose_reshape(-self.alpha, pose,
+        pose_reshape(-self.alpha, pose, vitposes,
                     6, 0, 7, 0,
                     [7], [], [], self.right_hands_indices
                     )
 
-    def extend_leg(self, pose):
-        pose_reshape(self.alpha, pose,
+    def extend_leg(self, pose, vitposes):
+        pose_reshape(self.alpha, pose, vitposes,
                      8, 0, 9, 0,
                      [9, 10], [], [], []
                      )
-        pose_reshape(self.alpha, pose,
+        pose_reshape(self.alpha, pose, vitposes,
                     11, 0, 12, 0,
                     [12, 13], [], [], []
                     )
-        pose_reshape(self.alpha, pose,
+        pose_reshape(self.alpha, pose, vitposes,
                      9, 0, 10, 0,
                      [10], [], [], []
                      )
-        pose_reshape(self.alpha, pose,
+        pose_reshape(self.alpha, pose, vitposes,
                     12, 0, 13, 0,
                     [13], [], [], []
                     )
         
-    def shrink_leg(self, pose):
-        pose_reshape(-self.alpha, pose,
+    def shrink_leg(self, pose, vitposes):
+        pose_reshape(-self.alpha, pose, vitposes,
                      8, 0, 9, 0,
                      [9, 10], [], [], []
                      )
-        pose_reshape(-self.alpha, pose,
+        pose_reshape(-self.alpha, pose, vitposes,
                     11, 0, 12, 0,
                     [12, 13], [], [], []
                     )
-        pose_reshape(-self.alpha, pose,
+        pose_reshape(-self.alpha, pose, vitposes,
                      9, 0, 10, 0,
                      [10], [], [], []
                      )
-        pose_reshape(-self.alpha, pose,
+        pose_reshape(-self.alpha, pose, vitposes,
                     12, 0, 13, 0,
                     [13], [], [], []
                     )
 
-    def extend_shoulder(self, pose):
-        pose_reshape(self.alpha, pose,
+    def extend_shoulder(self, pose, vitposes):
+        pose_reshape(self.alpha, pose, vitposes,
                      1, 0, 2, 0,
                      [2, 3, 4], [], self.left_hands_indices, []
                      )
-        pose_reshape(self.alpha, pose,
+        pose_reshape(self.alpha, pose, vitposes,
                     1, 0, 5, 0,
                     [5, 6, 7], [], [], self.right_hands_indices
                     )
         
-    def shrink_shoulder(self, pose):
-        pose_reshape(-self.alpha, pose,
+    def shrink_shoulder(self, pose, vitposes):
+        pose_reshape(-self.alpha, pose, vitposes,
                      1, 0, 2, 0,
                      [2, 3, 4], [], self.left_hands_indices, []
                      )
-        pose_reshape(-self.alpha, pose,
+        pose_reshape(-self.alpha, pose, vitposes,
                     1, 0, 5, 0,
                     [5, 6, 7], [], [], self.right_hands_indices
                     )
         
     
-    def dilate_face(self, pose):
+    def dilate_face(self, pose, vitposes):
         for i in self.faces_indices:
-            pose_reshape(self.alpha, pose,
+            pose_reshape(self.alpha, pose, vitposes,
                      0, 0, i, 1,
                      [], [i], [], []
                      )
         for i in [14, 15, 16, 17]:
-            pose_reshape(self.alpha, pose,
+            pose_reshape(self.alpha, pose, vitposes,
                     0, 0, i, 0,
                     [i], [], [], []
                     )
         
-    def shrink_face(self, pose):    # 缩小脸会看不清
+    def shrink_face(self, pose, vitposes):    # 缩小脸会看不清
         for i in self.faces_indices:
-            pose_reshape(-self.alpha / 2, pose,
+            pose_reshape(-self.alpha / 2, pose, vitposes,
                      0, 0, i, 1,
                      [], [i], [], []
                      )
             
         for i in [14, 15, 16, 17]:
-            pose_reshape(-self.alpha / 2, pose,
+            pose_reshape(-self.alpha / 2, pose, vitposes,
                     0, 0, i, 0,
                     [i], [], [], []
                     )

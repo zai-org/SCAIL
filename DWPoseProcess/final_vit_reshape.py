@@ -5,7 +5,6 @@ import multiprocessing
 import numpy as np
 import time
 from dwpose import DWposeDetector
-from DWPoseProcess.AAUtils import save_videos_from_pil
 from DWPoseProcess.checkUtils import *
 from collections import deque
 import shutil
@@ -33,10 +32,13 @@ import math
 import glob
 import pickle
 import copy
-from NLFPoseExtract.nlf_render import render_nlf_as_images
-from NLFPoseExtract.reshape_utils_3d import reshapePool3d
 import traceback
-import taichi as ti
+from DWPoseProcess.extract_mp4_hybrid_eval import get_hybrid_video
+from VITPoseExtract.pipeline import VITPosePipeline
+try:
+    import moviepy.editor as mpy
+except:
+    import moviepy as mpy
 
 def process_fn_video(src, meta_dict=None):
     worker_info = torch.utils.data.get_worker_info()
@@ -64,17 +66,11 @@ def process_fn_video(src, meta_dict=None):
 
         yield item
 
-def reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render):
+def reshape_render_to_wds(detector_vitpose, wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render):
     obj_list = []
     meta_dict = {}
     meta_file = wds_path.replace('.tar', '.meta.jsonl')
     meta_lines = open(meta_file).readlines()
-    tmp_dir = '/dev/shm/tmp'
-    os.makedirs(os.path.join(tmp_dir, 'faces_hands'), exist_ok=True)
-    os.makedirs(os.path.join(tmp_dir, 'cheek_hands'), exist_ok=True)
-    ti.reset()       # 清理taichi的缓存
-    tarname = os.path.basename(wds_path).replace('.tar', '')    
-    ti.init(arch=ti.cuda, offline_cache_file_path=f'{tmp_dir}/{tarname}')
 
     for meta_line in meta_lines:
         meta_line = meta_line.strip()
@@ -100,44 +96,55 @@ def reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_di
             mp4_bytes = data['mp4']
             motion_indices = data['motion_indices']
             vr = VideoReader(io.BytesIO(mp4_bytes))   # h w c
+            frames_np_motion = vr.get_batch(motion_indices).asnumpy()
+            first_frame_np = frames_np_motion[0]
+            tpl_pose_metas_motion = detector_vitpose(frames_np_motion)
+            keypoints = torch.load(os.path.join(save_dir_keypoints, key + '.pt'), weights_only=False)
+            keypoints_in_motion = [keypoints[idx] for idx in motion_indices]
+            smpl_rendered_path = os.path.join(save_dir_smpl_render, key + '.mp4')
+            if not os.path.exists(smpl_rendered_path):
+                print(f"skip {key}, no smpl rendered")
+                continue
             height = vr[0].shape[0]
             width = vr[0].shape[1]
-            keypoints = torch.load(os.path.join(save_dir_keypoints, key + '.pt'), weights_only=False)
-            smpl_data = pickle.load(open(os.path.join(save_dir_smpl, key + '.pkl'), 'rb'))
+            tmp_dir = '/dev/shm/tmp'
+            os.makedirs(tmp_dir, exist_ok=True)
 
-            out_path_dwpose_mp4 = os.path.join(save_dir_dwpose_mp4, key + '.mp4')
-            out_path_smpl_render = os.path.join(save_dir_smpl_render, key + '.mp4')
-            out_path_dwpose_mp4_face_hands = os.path.join(tmp_dir, 'faces_hands', key + '.mp4')
-            out_path_dwpose_mp4_cheek_hands = os.path.join(tmp_dir, 'cheek_hands', key + '.mp4')
-
-            
-            
-            keypoints_for_3d = copy.deepcopy(keypoints)
-            pool = reshapePool(alpha=0.6)
-            motion_keypoints = [keypoints[idx] for idx in motion_indices]
-            motion_reshape_results = draw_pose_to_canvas(copy.deepcopy(motion_keypoints), pool=pool, H=height, W=width, reshape_scale=0.6, points_only_flag=False, show_feet_flag=False, aug_body_draw=False)
-
-            t1 = threading.Thread(target=save_videos_from_pil,
-                      args=(motion_reshape_results, out_path_dwpose_mp4, 16))
-
-            t1.start()
-
-            reshape_pool_3d = reshapePool3d()
-            smpl_render_data, smpl_render_data_dw = render_nlf_as_images(smpl_data, motion_indices, dwpose_kpt_seq=keypoints_for_3d, reshape_pool=reshape_pool_3d)
-            save_videos_from_pil(smpl_render_data, out_path_smpl_render, 16)
-            save_videos_from_pil(smpl_render_data_dw, out_path_dwpose_mp4_cheek_hands, 16)
-            t1.join()
-
-            with open(out_path_dwpose_mp4, "rb") as f:
-                dwpose_mp4_data = f.read()
-            with open(out_path_smpl_render, "rb") as f:
+            hybrid_cheek_video_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0.6, only_cheek=True)
+            hybrid_cheek_video_no_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0, only_cheek=True)
+            hybrid_video_full_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0.6, only_cheek=False)
+            hybrid_video_full_no_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0, only_cheek=False)
+            hybrid_cheek_video_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_cheek_aug.mp4')
+            hybrid_cheek_video_no_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_cheek_no_aug.mp4')
+            hybrid_video_full_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_full_aug.mp4')
+            # hybrid_video_full_no_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_full_no_aug.mp4')
+            mpy.ImageSequenceClip(hybrid_cheek_video_aug, fps=16).write_videofile(hybrid_cheek_video_aug_path)
+            mpy.ImageSequenceClip(hybrid_cheek_video_no_aug, fps=16).write_videofile(hybrid_cheek_video_no_aug_path)
+            mpy.ImageSequenceClip(hybrid_video_full_aug, fps=16).write_videofile(hybrid_video_full_aug_path)
+            # mpy.ImageSequenceClip(hybrid_video_full_no_aug, fps=16).write_videofile(hybrid_video_full_no_aug_path)
+            with open(hybrid_cheek_video_aug_path, "rb") as f:
+                hybrid_cheek_video_aug_data = f.read()
+            with open(hybrid_cheek_video_no_aug_path, "rb") as f:
+                hybrid_cheek_video_no_aug_data = f.read()
+            with open(hybrid_video_full_aug_path, "rb") as f:
+                hybrid_video_full_aug_data = f.read()
+            # with open(hybrid_video_full_no_aug_path, "rb") as f:
+            #     hybrid_video_full_no_aug_data = f.read()
+            with open(smpl_rendered_path, "rb") as f:
                 smpl_render_data = f.read()
-            with open(out_path_dwpose_mp4_cheek_hands, "rb") as f:
-                dwpose_mp4_cheek_hands = f.read()
-            data['append_dwpose_reshape'] = dwpose_mp4_data
+
+            # if random.random() < 0.8:
+                # data['append_dwpose_noreshape'] = hybrid_video_full_no_aug_data  # pose现在不能替换，因为长度不一致
+            data['append_dwpose_reshape'] = hybrid_video_full_aug_data
             data['append_smpl_render'] = smpl_render_data
-            data['append_dwpose_noreshape_cheek_hands'] = dwpose_mp4_cheek_hands
-            os.remove(out_path_dwpose_mp4_cheek_hands)    # 清除临时文件
+            data['append_dwpose_reshape_cheek_hands'] = hybrid_cheek_video_aug_data
+            data['append_dwpose_noreshape_cheek_hands'] = hybrid_cheek_video_no_aug_data
+            # 清除临时文件
+            os.remove(hybrid_cheek_video_aug_path)
+            os.remove(hybrid_cheek_video_no_aug_path)
+            os.remove(hybrid_video_full_aug_path)
+            # os.remove(hybrid_video_full_no_aug_path)
+
             data.pop('motion_indices')
             obj_list.append(meta_dict.get(key, None))
             writer.write(data)
@@ -147,11 +154,11 @@ def reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_di
         writer.close()
         
 
-def process_tar_chunk(chunk, input_root, output_root, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render):
+def process_tar_chunk(detector_vitpose, chunk, input_root, output_root, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render):
     for wds_path in chunk:
         rel_path = os.path.relpath(wds_path, input_root)
         output_wds_path = os.path.join(output_root, rel_path)
-        reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render)
+        reshape_render_to_wds(detector_vitpose, wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render)
         gc.collect()
     
 def load_config(config_path):
@@ -166,9 +173,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='video_directories.yaml', 
                         help='Path to YAML configuration file')
-    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0923_step3',
+    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0929_step3',
                         help='Input root')
-    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_1001_step4',
+    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0929_step5',
                         help='Output root')
     parser.add_argument('--max_processes', type=int, default=8,
                         help='Max processes')
@@ -206,7 +213,8 @@ if __name__ == "__main__":
     current_tar_paths = input_tar_paths[current_process::max_processes]
     if len(current_tar_paths) == 0:
         print("No chunks to process")
-    process_tar_chunk(current_tar_paths, input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render)
+    detector_vitpose = VITPosePipeline(det_checkpoint_path="/workspace/yanwenhao/Wan2.2/Wan2.2-Animate-14B/process_checkpoint/det/yolov10m.onnx", pose2d_checkpoint_path="/workspace/yanwenhao/Wan2.2/Wan2.2-Animate-14B/process_checkpoint/pose2d/vitpose_h_wholebody.onnx")
+    process_tar_chunk(detector_vitpose, current_tar_paths, input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render)
 
 
 

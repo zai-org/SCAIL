@@ -5,7 +5,6 @@ import multiprocessing
 import numpy as np
 import time
 from dwpose import DWposeDetector
-from DWPoseProcess.AAUtils import save_videos_from_pil
 from DWPoseProcess.checkUtils import *
 from collections import deque
 import shutil
@@ -56,6 +55,27 @@ def project_dwpose_to_3d(dwpose_keypoint, original_threed_keypoint, focal, princ
     new_z = ori_z  # 保持深度不变
 
     return [new_x, new_y, new_z]
+
+def check_nlf_result(dwpose_data, video_height, video_width, smpl_extracted_data, multi_person):
+    nozero_t = []
+
+    for t in range(len(dwpose_data)):
+        dwpose_kpts = copy.deepcopy(dwpose_data[t]['bodies']['candidate'])
+        smpl_kpts = smpl_extracted_data[t]
+        # 目前只支持单人
+        if not multi_person:
+            if dwpose_kpts.shape[0] == 0 or smpl_kpts.shape[0] == 0:
+                continue
+            elif smpl_kpts.shape[0] <= 2:
+                nozero_t.append(t)
+        else:
+            if dwpose_kpts.shape[0] == 0 or smpl_kpts.shape[0] == 0:
+                continue
+            elif dwpose_kpts.shape[0] != smpl_kpts.shape[0]:
+                continue
+            else:
+                nozero_t.append(t)
+    return nozero_t
 
 def check_2d_3d_match(dwpose_data, video_height, video_width, smpl_extracted_data, multi_person):
     match_t = []
@@ -156,7 +176,7 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
         valid_lengths = [length for length in possible_lengths if length <= len(poses)]
         valid_lengths.sort(reverse=True)
         final_motion_indices = None
-        check_2d_3d_match_result, nozero_t_result = check_2d_3d_match(poses.copy(), H, W, smpl_extracted_data, multi_person)   # 取了Pick_indices之后的t
+        nozero_t_result = check_nlf_result(poses.copy(), H, W, smpl_extracted_data, multi_person)   # 取了Pick_indices之后的t
 
         for motion_part_len in valid_lengths:
             start_index = 8
@@ -171,7 +191,7 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
                 motion_part_indices = np.arange(start_index, end, 1).astype(int)
                 ref_part_indices = np.arange(max(start_index-15, 0), start_index + 1, 1).astype(int)  # 对Synthetic视频，就是首帧
                 motion_part_indices_in_nozero_t = [index for index in motion_part_indices if index in nozero_t_result]
-                if len(motion_part_indices_in_nozero_t) < 0.5 * motion_part_len:   # 正确的太少了
+                if len(motion_part_indices_in_nozero_t) < 0.6 * motion_part_len:   # 正确的太少了
                     start_index += random.randint(3, 4)
                     continue
 
@@ -182,10 +202,9 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
 
                 # 下面这四个筛选逻辑，除了bbox本身的，其他只对第0个bbox里的骨骼进行筛选
                 motion_part_bbox_check_result = check_from_keypoints_bbox(motion_part_poses, motion_part_bboxes, IoU_thresthold=0.3, reference_width=W, reference_height=H, multi_person=multi_person)
-                motion_part_core_check_result = check_from_keypoints_core_keypoints(motion_part_poses, motion_part_bboxes)
                 ref_part_check_indices = get_valid_indice_from_keypoints(ref_part_poses, ref_part_indices)
                 
-                if len(ref_part_check_indices) > 0 and motion_part_bbox_check_result and motion_part_core_check_result:    # 这里只要满足正脸条件就可以，其它都留着
+                if len(ref_part_check_indices) > 0 and motion_part_bbox_check_result:    # 这里只要满足正脸条件就可以，其它都留着
                     if multi_person:
                         final_ref_image_indice = select_ref_from_keypoints_bbox_multi(ref_part_indices, ref_part_bboxes, motion_part_bboxes)
                         if final_ref_image_indice is None:
@@ -213,8 +232,7 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
             else:
                 final_motion_indices = [int(pick_indices[idx]) for idx in final_motion_indices]
                 final_ref_image_indices = [int(pick_indices[idx]) for idx in final_ref_image_indices]
-                final_check_2d_3d_match_result = [int(pick_indices[idx]) for idx in check_2d_3d_match_result]
-                return final_motion_indices, final_ref_image_indices, final_check_2d_3d_match_result, motion_speed
+                return final_motion_indices, final_ref_image_indices, motion_speed
     except Exception as e:
         print(f"Error processing video {keypoint_path}: {e}, continue")
     return None
@@ -316,12 +334,12 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
                 if process_result is None:
                     continue
 
-                final_motion_indices, final_ref_image_indices, final_check_2d_3d_match_result, motion_speed = process_result
+                final_motion_indices, final_ref_image_indices, motion_speed = process_result
                 obj = meta_dict.get(key, None)
                 if obj is None:
                     print(f"skip {key}, no meta")
                     continue
-                obj.update({'motion_indices': final_motion_indices, 'ref_image_indices': final_ref_image_indices, 'check_2d_3d_match_result': final_check_2d_3d_match_result, 'motion_speed': motion_speed})
+                obj.update({'motion_indices': final_motion_indices, 'ref_image_indices': final_ref_image_indices, 'motion_speed': motion_speed})
 
                 data.pop('height', None)
                 data.pop('width', None)

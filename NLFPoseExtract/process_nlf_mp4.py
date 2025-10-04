@@ -6,6 +6,7 @@ import pickle
 import torchvision
 import shutil
 import glob
+import random
 from tqdm import tqdm   
 import decord
 from decord import VideoReader, cpu, gpu
@@ -14,13 +15,13 @@ from PIL import Image
 import numpy as np
 from NLFPoseExtract.nlf_render import render_nlf_as_images
 from DWPoseProcess.dwpose import DWposeDetector
-from DWPoseProcess.AAUtils import save_videos_from_pil
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 import traceback
 from DWPoseProcess.extract_nlfpose import process_video_nlf
+from NLFPoseExtract.reshape_utils_3d import reshapePool3d
 
-def process_video_dwpose(model, frames, height, width):
+def process_video_dwpose(model, frames):
 
     detector_return_list = []
 
@@ -37,26 +38,30 @@ def process_video_dwpose(model, frames, height, width):
     return poses     # a list of poses, each pose is a dict, has bodies, faces, hands
 
 
-# 对3d做reshape的时候，目前只做reshape，移动按照2d? 按照3d移动一些看看
 
 if __name__ == '__main__':
-    model = torch.jit.load("/workspace/yanwenhao/dwpose_draw/NLFPoseExtract/nlf_l_multi_0.3.2.torchscript").cuda().eval()
+    # model_nlf = torch.jit.load("/workspace/yanwenhao/dwpose_draw/NLFPoseExtract/nlf_l_multi_0.3.2.torchscript").cuda().eval()
+    # detector = DWposeDetector(use_batch=False).to(0)
 
-    evaluation_dir = "/workspace/ywh_data/EvalSelf/evaluation_300_old"
+    # evaluation_dir = "/workspace/ywh_data/EvalSelf/evaluation_300_old"
+    root_dir = '/workspace/ywh_data/DataProcessNew/bili_dance_hengping_250328'
     decord.bridge.set_bridge("torch")
 
 
-    for subdir_idx, subdir in tqdm(enumerate(sorted(os.listdir(evaluation_dir)))):
-        ori_video_path = os.path.join(evaluation_dir, subdir, 'GT.mp4')
-        out_path_mp4 = os.path.join(evaluation_dir, subdir, 'smpl_render.mp4')
-        vr = VideoReader(ori_video_path)
-        frames = vr.get_batch(list(range(len(vr))))
-        frames = torch.from_numpy(frames) if type(frames) is not torch.Tensor else frames
-        height = frames.shape[1]
-        width = frames.shape[2]
-        length = frames.shape[0]
+    # for subdir_idx, subdir in tqdm(enumerate(sorted(os.listdir(evaluation_dir)))):
+    kpt_dir = os.path.join(root_dir, 'keypoints')
+    smpl_dir = os.path.join(root_dir, 'smpl')
+    out_dir = '/workspace/yanwenhao/dwpose_draw/render_preview'
+    
 
-        output_meta = process_video_nlf(model, frames, height, width)
-        dwpose_meta = process_video_dwpose(model, frames, height, width)
-        pil_results = render_nlf_as_images(output_meta, motion_indices=list(range(length)), output_path=out_path_mp4)
+    for smpl_pkl in tqdm(random.sample(os.listdir(smpl_dir), 100)):
+        key = smpl_pkl.split('.')[0]
+        smpl_pkl_path = os.path.join(smpl_dir, smpl_pkl)
+        with open(smpl_pkl_path, 'rb') as f:
+            smpl_data = pickle.load(f)
+        dwpose_kpt_seq = os.path.join(kpt_dir, key + '.pt')
+        dwpose_kpt_seq = torch.load(dwpose_kpt_seq)
+        out_path_mp4 = os.path.join(out_dir, f'{key}.mp4')
+        reshape_pool = reshapePool3d()
+        np_results = render_nlf_as_images(smpl_data, motion_indices=list(range(65)), reshape_pool=reshape_pool)
 

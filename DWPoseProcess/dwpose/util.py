@@ -208,7 +208,7 @@ def draw_handpose(canvas, all_hand_peaks):
             x = int(x * W)
             y = int(y * H)
             if x > eps and y > eps:
-                cv2.circle(canvas, (x, y), 4, (0, 0, 255), thickness=-1)
+                cv2.circle(canvas, (x, y), 2, (0, 0, 255), thickness=-1)
     return canvas
 
 

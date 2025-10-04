@@ -5,7 +5,6 @@ import random
 import math
 import time
 import imageio
-from pose_draw.draw_pose_main import save_videos_from_pil
 ti.init(arch=ti.cuda)
 
 def flatten_specs(specs_list):
@@ -29,7 +28,7 @@ def flatten_specs(specs_list):
         np.array(frame_count, dtype=np.int32),
     )
 
-def render_whole(specs_list, H=480, W=640, fx=500, fy=500, cx=240,  cy=320, output_path=None):
+def render_whole(specs_list, H=480, W=640, fx=500, fy=500, cx=240,  cy=320):
     img = ti.Vector.field(4, dtype=ti.f32, shape=(H, W))
     starts, ends, colors, frame_offset, frame_count = flatten_specs(specs_list)
     total_cyl = len(starts)
@@ -162,7 +161,7 @@ def render_whole(specs_list, H=480, W=640, fx=500, fy=500, cx=240,  cy=320, outp
                 t += max(d, 1e-4)
             img[y, x] = col_out
 
-    frames = []
+    frames_np_rgba = []
     for f in range(len(specs_list)):
         # start_time = time.time()
         frame_id[None] = f
@@ -171,9 +170,9 @@ def render_whole(specs_list, H=480, W=640, fx=500, fy=500, cx=240,  cy=320, outp
         # end_time = time.time()
         # print(f"Frame {f} time: {end_time - start_time} seconds")
         arr8 = (arr * 255).astype(np.uint8)
-        frames.append(Image.fromarray(arr8, mode="RGBA"))
-
-    save_videos_from_pil(frames, output_path, fps=16)
+        frames_np_rgba.append(arr8)
+        
+    return frames_np_rgba
 
 
 def random_cylinder():
@@ -212,4 +211,4 @@ def generate_specs_list(num_frames=120, min_cyl=10, max_cyl=120):
 
 if __name__ == "__main__":
     specs_list = generate_specs_list(num_frames=24, min_cyl=10, max_cyl=120)
-    render_whole(specs_list, output_path="/workspace/yanwenhao/dwpose_draw/render_preview/test.mp4")
+    frames = render_whole(specs_list)

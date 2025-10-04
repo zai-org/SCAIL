@@ -531,16 +531,20 @@ def draw_handpose_points_only(canvas, all_hand_peaks):
     return canvas
 
 
-def draw_facepose(canvas, all_lmks):
+def draw_facepose(canvas, all_lmks, optimized_face=True):
     H, W, C = canvas.shape
     for lmks in all_lmks:
         lmks = np.array(lmks)
-        for lmk in lmks:
+        for lmk_idx, lmk in enumerate(lmks):
             x, y = lmk
             x = int(x * W)
             y = int(y * H)
             if x > eps and y > eps:
-                cv2.circle(canvas, (x, y), 3, (255, 255, 255), thickness=-1)
+                if optimized_face:
+                    if lmk_idx in list(range(17, 27)) + list(range(36, 70)):
+                        cv2.circle(canvas, (x, y), 2, (255, 255, 255), thickness=-1)
+                else:
+                    cv2.circle(canvas, (x, y), 3, (255, 255, 255), thickness=-1)
     return canvas
 
 

@@ -6,3 +6,4 @@ filter_args:
   use_filter: False
   save_mp4: True
   use_fail_prompt: False
+  reshape: "high"

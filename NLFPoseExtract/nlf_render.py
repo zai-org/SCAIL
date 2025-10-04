@@ -33,7 +33,7 @@ def get_single_pose_cylinder_specs(args):
 
 
 
-def render_nlf_as_images(data, motion_indices, dwpose_kpt_seq=None, reshape_pool=None):
+def render_nlf_as_images(data, motion_indices, reshape_pool=None):
     """ return a list of images """
     height, width = data['video_height'], data['video_width']
     video_length = data['video_length']
@@ -132,10 +132,8 @@ def render_nlf_as_images(data, motion_indices, dwpose_kpt_seq=None, reshape_pool
         for i in range(video_length):
             if i in motion_indices:
                 joints_list = smpl_poses[i]
-                dwpose = dwpose_kpt_seq[i]
-                reshape_pool.apply_random_reshapes(joints_list, dwpose)   # 对joints_list和dwpose应用形变
+                reshape_pool.apply_random_reshapes(joints_list)   # 对joints_list和dwpose应用形变
                 smpl_poses[i] = joints_list
-                dwpose_kpt_seq[i] = dwpose
 
     # 串行
     cylinder_specs_list = []
@@ -148,25 +146,5 @@ def render_nlf_as_images(data, motion_indices, dwpose_kpt_seq=None, reshape_pool
 
     data['pose']['joints3d_nonparam'] = [smpl_poses[i] for i in motion_indices]
     frames_np_rgba = render_whole(cylinder_specs_list, H=height, W=width, fx=focal, fy=focal, cx=princpt[0], cy=princpt[1])
-    PIL_frames = []
-    PIL_frames_dw = []
-    for idx, frame_np in enumerate(frames_np_rgba):
-        frame_np = frame_np[:, :, :3]
-        final_dw_canvas = np.zeros((height, width, 3), dtype=np.uint8)
-        dwpose = dwpose_kpt_seq[idx]
-        for i in range(len(dwpose["bodies"]["candidate"])):
-            bodies = dwpose["bodies"]
-            candidate = bodies["candidate"][i]
-            subset = bodies["subset"][i:i+1]   # subset是认为的有效点
-            subset[:, 1:14] = -1
-            hands = dwpose["hands"][2*i:2*i+2]
 
-            canvas = np.zeros((height, width, 3), dtype=np.uint8)
-            canvas = draw_bodypose(canvas, candidate, subset)
-            canvas = draw_handpose(canvas, hands)
-            final_dw_canvas = final_dw_canvas + canvas
-        PIL_frames.append(Image.fromarray(frame_np))
-        PIL_frames_dw.append(Image.fromarray(final_dw_canvas))
-
-
-    return PIL_frames, PIL_frames_dw
+    return frames_np_rgba
