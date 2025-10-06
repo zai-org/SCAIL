@@ -98,56 +98,61 @@ def reshape_render_to_wds(detector_vitpose, wds_path, output_wds_path, save_dir_
             vr = VideoReader(io.BytesIO(mp4_bytes))   # h w c
             frames_np_motion = vr.get_batch(motion_indices).asnumpy()
             first_frame_np = frames_np_motion[0]
-            tpl_pose_metas_motion = detector_vitpose(frames_np_motion)
-            keypoints = torch.load(os.path.join(save_dir_keypoints, key + '.pt'), weights_only=False)
-            keypoints_in_motion = [keypoints[idx] for idx in motion_indices]
-            smpl_rendered_path = os.path.join(save_dir_smpl_render, key + '.mp4')
-            if not os.path.exists(smpl_rendered_path):
-                print(f"skip {key}, no smpl rendered")
+            try:
+                tpl_pose_metas_motion = detector_vitpose(frames_np_motion)
+                keypoints = torch.load(os.path.join(save_dir_keypoints, key + '.pt'), weights_only=False)
+                keypoints_in_motion = [keypoints[idx] for idx in motion_indices]
+                smpl_rendered_path = os.path.join(save_dir_smpl_render, key + '.mp4')
+                if not os.path.exists(smpl_rendered_path):
+                    print(f"skip {key}, no smpl rendered")
+                    continue
+                height = vr[0].shape[0]
+                width = vr[0].shape[1]
+                tmp_dir = '/dev/shm/tmp'
+                os.makedirs(tmp_dir, exist_ok=True)
+
+                hybrid_cheek_video_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0.6, only_cheek=True)
+                hybrid_cheek_video_no_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0, only_cheek=True)
+                hybrid_video_full_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0.6, only_cheek=False)
+                hybrid_video_full_no_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0, only_cheek=False)
+                hybrid_cheek_video_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_cheek_aug.mp4')
+                hybrid_cheek_video_no_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_cheek_no_aug.mp4')
+                hybrid_video_full_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_full_aug.mp4')
+                # hybrid_video_full_no_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_full_no_aug.mp4')
+                mpy.ImageSequenceClip(hybrid_cheek_video_aug, fps=16).write_videofile(hybrid_cheek_video_aug_path)
+                mpy.ImageSequenceClip(hybrid_cheek_video_no_aug, fps=16).write_videofile(hybrid_cheek_video_no_aug_path)
+                mpy.ImageSequenceClip(hybrid_video_full_aug, fps=16).write_videofile(hybrid_video_full_aug_path)
+                # mpy.ImageSequenceClip(hybrid_video_full_no_aug, fps=16).write_videofile(hybrid_video_full_no_aug_path)
+                with open(hybrid_cheek_video_aug_path, "rb") as f:
+                    hybrid_cheek_video_aug_data = f.read()
+                with open(hybrid_cheek_video_no_aug_path, "rb") as f:
+                    hybrid_cheek_video_no_aug_data = f.read()
+                with open(hybrid_video_full_aug_path, "rb") as f:
+                    hybrid_video_full_aug_data = f.read()
+                # with open(hybrid_video_full_no_aug_path, "rb") as f:
+                #     hybrid_video_full_no_aug_data = f.read()
+                with open(smpl_rendered_path, "rb") as f:
+                    smpl_render_data = f.read()
+
+                # if random.random() < 0.8:
+                    # data['append_dwpose_noreshape'] = hybrid_video_full_no_aug_data  # pose现在不能替换，因为长度不一致
+                data['append_dwpose_reshape'] = hybrid_video_full_aug_data
+                data['append_smpl_render'] = smpl_render_data
+                data['append_dwpose_reshape_cheek_hands'] = hybrid_cheek_video_aug_data
+                data['append_dwpose_noreshape_cheek_hands'] = hybrid_cheek_video_no_aug_data
+                # 清除临时文件
+                os.remove(hybrid_cheek_video_aug_path)
+                os.remove(hybrid_cheek_video_no_aug_path)
+                os.remove(hybrid_video_full_aug_path)
+                # os.remove(hybrid_video_full_no_aug_path)
+
+                data.pop('motion_indices')
+                obj_list.append(meta_dict.get(key, None))
+                writer.write(data)
+            except Exception as e:
+                print(e)
+                print(f"skip {key}, error")
                 continue
-            height = vr[0].shape[0]
-            width = vr[0].shape[1]
-            tmp_dir = '/dev/shm/tmp'
-            os.makedirs(tmp_dir, exist_ok=True)
-
-            hybrid_cheek_video_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0.6, only_cheek=True)
-            hybrid_cheek_video_no_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0, only_cheek=True)
-            hybrid_video_full_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0.6, only_cheek=False)
-            hybrid_video_full_no_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0, only_cheek=False)
-            hybrid_cheek_video_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_cheek_aug.mp4')
-            hybrid_cheek_video_no_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_cheek_no_aug.mp4')
-            hybrid_video_full_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_full_aug.mp4')
-            # hybrid_video_full_no_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_full_no_aug.mp4')
-            mpy.ImageSequenceClip(hybrid_cheek_video_aug, fps=16).write_videofile(hybrid_cheek_video_aug_path)
-            mpy.ImageSequenceClip(hybrid_cheek_video_no_aug, fps=16).write_videofile(hybrid_cheek_video_no_aug_path)
-            mpy.ImageSequenceClip(hybrid_video_full_aug, fps=16).write_videofile(hybrid_video_full_aug_path)
-            # mpy.ImageSequenceClip(hybrid_video_full_no_aug, fps=16).write_videofile(hybrid_video_full_no_aug_path)
-            with open(hybrid_cheek_video_aug_path, "rb") as f:
-                hybrid_cheek_video_aug_data = f.read()
-            with open(hybrid_cheek_video_no_aug_path, "rb") as f:
-                hybrid_cheek_video_no_aug_data = f.read()
-            with open(hybrid_video_full_aug_path, "rb") as f:
-                hybrid_video_full_aug_data = f.read()
-            # with open(hybrid_video_full_no_aug_path, "rb") as f:
-            #     hybrid_video_full_no_aug_data = f.read()
-            with open(smpl_rendered_path, "rb") as f:
-                smpl_render_data = f.read()
-
-            # if random.random() < 0.8:
-                # data['append_dwpose_noreshape'] = hybrid_video_full_no_aug_data  # pose现在不能替换，因为长度不一致
-            data['append_dwpose_reshape'] = hybrid_video_full_aug_data
-            data['append_smpl_render'] = smpl_render_data
-            data['append_dwpose_reshape_cheek_hands'] = hybrid_cheek_video_aug_data
-            data['append_dwpose_noreshape_cheek_hands'] = hybrid_cheek_video_no_aug_data
-            # 清除临时文件
-            os.remove(hybrid_cheek_video_aug_path)
-            os.remove(hybrid_cheek_video_no_aug_path)
-            os.remove(hybrid_video_full_aug_path)
-            # os.remove(hybrid_video_full_no_aug_path)
-
-            data.pop('motion_indices')
-            obj_list.append(meta_dict.get(key, None))
-            writer.write(data)
     with open(output_meta_file, 'w', encoding='utf-8') as outfile:
         writer = jsonlines.Writer(outfile)
         writer.write_all(obj_list)

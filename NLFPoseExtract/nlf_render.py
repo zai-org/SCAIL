@@ -12,6 +12,7 @@ os.environ['PYOPENGL_PLATFORM'] = 'osmesa'
 import pyrender
 import trimesh
 import copy
+import random
 
 def get_single_pose_cylinder_specs(args):
     """渲染单个pose的辅助函数，用于并行处理"""
@@ -146,5 +147,9 @@ def render_nlf_as_images(data, motion_indices, reshape_pool=None):
 
     data['pose']['joints3d_nonparam'] = [smpl_poses[i] for i in motion_indices]
     frames_np_rgba = render_whole(cylinder_specs_list, H=height, W=width, fx=focal, fy=focal, cx=princpt[0], cy=princpt[1])
+    if reshape_pool is not None:
+        for i in range(len(frames_np_rgba)):
+            if random.random() < 0.025:   # 2.5%的概率消除
+                frames_np_rgba[i][:, :, 0:3] = 0
 
     return frames_np_rgba

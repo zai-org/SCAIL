@@ -1,7 +1,7 @@
 #!/bin/bash
 
 GPU_COUNT=8
-MAX_PROCESSES=64
+MAX_PROCESSES=48
 
 # 第一个参数是 yaml 文件名
 YAML_NAME=$1

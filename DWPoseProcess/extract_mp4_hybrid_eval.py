@@ -56,10 +56,11 @@ def process_single_video(detector_dwpose, detector_vitpose, frames_np, out_path_
     tpl_pose_metas = detector_vitpose(frames_np)
 
     np_results = get_hybrid_video(frames_np[0], poses, tpl_pose_metas, H, W, reshape_scale=0, only_cheek=False)
+    np_results_cheek = get_hybrid_video(frames_np[0], poses, tpl_pose_metas, H, W, reshape_scale=0, only_cheek=True)
     print("save video to ", out_path_mp4)
     mpy.ImageSequenceClip(np_results, fps=16).write_videofile(out_path_mp4)
     print("save video to ", out_path_mp4_cheek)
-    mpy.ImageSequenceClip(np_results, fps=16).write_videofile(out_path_mp4_cheek)
+    mpy.ImageSequenceClip(np_results_cheek, fps=16).write_videofile(out_path_mp4_cheek)
 
 
 def get_hybrid_video(first_frame_np, poses, tpl_pose_metas, H, W, reshape_scale=0.6, only_cheek=True):
@@ -72,10 +73,13 @@ def get_hybrid_video(first_frame_np, poses, tpl_pose_metas, H, W, reshape_scale=
     for cond_image, pose in zip(cond_images, poses):
         show_face = True
         if reshape_scale > 0:
-            if random.random() < 0.3:
+            if random.random() < 0.08:
                 show_face = False
         canvas = draw_pose(pose, H, W, show_feet=False, show_body=False, show_hand=False, show_face=show_face, show_cheek=False, optimized_face=True) # H W 3 np
         mask = (canvas.sum(axis=2) > 0)   # shape: (H, W), bool
+        if reshape_scale > 0:
+            if random.random() < 0.05:
+                cond_image[:] = 0
         cond_image[mask] = canvas[mask]
 
     return cond_images

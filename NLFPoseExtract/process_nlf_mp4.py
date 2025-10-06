@@ -19,49 +19,27 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 import traceback
 from DWPoseProcess.extract_nlfpose import process_video_nlf
-from NLFPoseExtract.reshape_utils_3d import reshapePool3d
-
-def process_video_dwpose(model, frames):
-
-    detector_return_list = []
-
-    # 逐帧解码
-    pil_frames = []
-    for i in range(len(frames)):
-        pil_frame = Image.fromarray(frames[i].numpy())
-        pil_frames.append(pil_frame)
-        detector_result = model(pil_frame)
-        detector_return_list.append(detector_result)
-    
-    poses, _, _ = zip(*detector_return_list)
-
-    return poses     # a list of poses, each pose is a dict, has bodies, faces, hands
+try:
+    import moviepy.editor as mpy
+except:
+    import moviepy as mpy
 
 
 
 if __name__ == '__main__':
-    # model_nlf = torch.jit.load("/workspace/yanwenhao/dwpose_draw/NLFPoseExtract/nlf_l_multi_0.3.2.torchscript").cuda().eval()
-    # detector = DWposeDetector(use_batch=False).to(0)
+    model_nlf = torch.jit.load("/workspace/yanwenhao/dwpose_draw/NLFPoseExtract/nlf_l_multi_0.3.2.torchscript").cuda().eval()
 
-    # evaluation_dir = "/workspace/ywh_data/EvalSelf/evaluation_300_old"
-    root_dir = '/workspace/ywh_data/DataProcessNew/bili_dance_hengping_250328'
+    evaluation_dir = "/workspace/ywh_data/EvalSelf/evaluation_300_old"
     decord.bridge.set_bridge("torch")
 
-
-    # for subdir_idx, subdir in tqdm(enumerate(sorted(os.listdir(evaluation_dir)))):
-    kpt_dir = os.path.join(root_dir, 'keypoints')
-    smpl_dir = os.path.join(root_dir, 'smpl')
-    out_dir = '/workspace/yanwenhao/dwpose_draw/render_preview'
-    
-
-    for smpl_pkl in tqdm(random.sample(os.listdir(smpl_dir), 100)):
-        key = smpl_pkl.split('.')[0]
-        smpl_pkl_path = os.path.join(smpl_dir, smpl_pkl)
-        with open(smpl_pkl_path, 'rb') as f:
-            smpl_data = pickle.load(f)
-        dwpose_kpt_seq = os.path.join(kpt_dir, key + '.pt')
-        dwpose_kpt_seq = torch.load(dwpose_kpt_seq)
-        out_path_mp4 = os.path.join(out_dir, f'{key}.mp4')
-        reshape_pool = reshapePool3d()
-        np_results = render_nlf_as_images(smpl_data, motion_indices=list(range(65)), reshape_pool=reshape_pool)
+    for subdir_idx, subdir in tqdm(enumerate(sorted(os.listdir(evaluation_dir)))):
+        mp4_path = os.path.join(evaluation_dir, subdir, 'GT.mp4')
+        out_path = os.path.join(evaluation_dir, subdir, 'smpl_render.mp4')
+        vr = VideoReader(mp4_path)
+        vr_frames = vr.get_batch(list(range(len(vr))))
+        height, width = vr_frames.shape[1], vr_frames.shape[2]
+        nlf_results = process_video_nlf(model_nlf, vr_frames, height, width)
+        frames_np = render_nlf_as_images(nlf_results, list(range(len(vr_frames))))
+        print("save video to ", out_path)
+        mpy.ImageSequenceClip(frames_np, fps=16).write_videofile(out_path)
 

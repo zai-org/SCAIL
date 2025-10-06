@@ -838,6 +838,10 @@ def draw_aapose_new(
             [15, 17],
             [1, 16],
             [16, 18],  # face (nose, eyes, ears)
+            # [4, 5],
+            # [7, 8],
+            # [10, 11],
+            # [13, 14],
         ]
 
     colors = [
@@ -870,6 +874,10 @@ def draw_aapose_new(
             [255, 0, 255],
             [255, 0, 170],
             [255, 0, 85],
+            # [255, 255, 0],
+            # [85, 255, 0],
+            # [0, 255, 170],
+            # [0, 85, 255],
         ]
     else:
         colors_limb = colors
@@ -904,8 +912,12 @@ def draw_aapose_new(
         if keypoint[-1] < threshold:
             continue
         x, y = keypoint[0], keypoint[1]
-        # cv2.circle(canvas, (int(x), int(y)), 4, color, thickness=-1)
-        cv2.circle(img, (int(x), int(y)), stickwidth, color, thickness=-1)
+        if only_cheek:
+            if _idx in [0, 14, 15, 16, 17, 3, 6, 9, 12]:   # 只画脸颊、手肘、膝盖
+                cv2.circle(img, (int(x), int(y)), stickwidth, color, thickness=-1)
+        
+        else:
+            cv2.circle(img, (int(x), int(y)), stickwidth, color, thickness=-1)
         # cv2.putText(
         #     img,
         #     str(_idx),                      # 显示的文字
