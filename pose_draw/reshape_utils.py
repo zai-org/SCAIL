@@ -291,7 +291,7 @@ class reshapePool:
             self.dilate_face,
             self.shrink_face,
         ]
-        self.selected_methods = random.sample(self.body_reshape_methods, 2) + random.sample(self.scale_reshape_methods, 1)
+        self.selected_methods = random.sample(self.body_reshape_methods, 2) + random.sample(self.scale_reshape_methods, random.choice([0, 1]))
 
     def apply_random_reshapes(self, pose, vitposes=None):
         # Apply the two selected reshape methods

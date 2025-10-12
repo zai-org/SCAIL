@@ -82,7 +82,7 @@ def process_single_video(detector, frames_tensor, out_path_mp4):
     W, H = pil_frames[0].size
 
     poses, scores, det_results = zip(*detector_return_list) # 这里存的是整个视频的poses
-    mp4_results = draw_pose_to_canvas(poses, pool=None, H=H, W=W, reshape_scale=0, points_only_flag=False, show_feet_flag=False, dw_hand=True, show_body_flag=False, show_cheek_flag=True, show_face_flag=False)
+    mp4_results = draw_pose_to_canvas(poses, pool=None, H=H, W=W, reshape_scale=0, points_only_flag=False, show_feet_flag=False, dw_hand=False, show_body_flag=False, show_cheek_flag=True, show_face_flag=False)
 
     save_videos_from_pil(mp4_results, out_path_mp4, fps=16)
 

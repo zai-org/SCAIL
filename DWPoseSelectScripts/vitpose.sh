@@ -1,7 +1,7 @@
 #!/bin/bash
 
 GPU_COUNT=8
-MAX_PROCESSES=96
+MAX_PROCESSES=48
 
 # 第一个参数是 yaml 文件名
 YAML_NAME=$1
@@ -15,7 +15,7 @@ export PYTHONPATH=$(pwd)
 
 for i in $(seq 0 $((MAX_PROCESSES-1))); do
     export CUDA_VISIBLE_DEVICES=$((i % GPU_COUNT))
-    python DWPoseProcess/final_reshape.py \
+    python DWPoseProcess/extract_vit.py \
         --config DWPoseExtractConfig/$YAML_NAME \
         --current_process $i \
         --max_processes $MAX_PROCESSES &

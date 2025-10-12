@@ -192,7 +192,7 @@ def draw_bodypose_with_feet(canvas, candidate, subset):
     return canvas
 
 
-def draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=True, shift_aug=False):
+def draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=True, shift_aug=False, all_cheek_aug=False):
     H, W, C = canvas.shape
     candidate = np.array(candidate)
     subset = np.array(subset)
@@ -206,40 +206,40 @@ def draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=True, shift_a
         [4, 5],  # 3->4 左肘 3
         [6, 7],  # 5->6 右臂 4
         [7, 8],  # 6->7 右肘 5
-        [2, 9],
-        [9, 10],
-        [10, 11],
-        [2, 12],
-        [12, 13],
-        [13, 14],
-        [2, 1],
-        [1, 15],
-        [15, 17],
-        [1, 16],
-        [16, 18],
+        [2, 9],  # 6
+        [9, 10], # 7
+        [10, 11], # 8
+        [2, 12],  # 9
+        [12, 13], # 10
+        [13, 14], # 11
+        [2, 1],   # 12 
+        [1, 15],  # 13 cheek
+        [15, 17], # 14 cheek
+        [1, 16],  # 15 cheek
+        [16, 18], # 16 cheek
         [3, 17],
         [6, 18],
     ]
 
     colors = [
-        [30, 225, 30],
-        [30, 225, 150],
-        [30, 180, 225],
-        [30, 30, 225],
-        [100, 30, 225],
-        [180, 30, 225],
-        [225, 30, 225],
-        [225, 30, 150],
-        [225, 30, 100],
-        [225, 30, 30],
-        [225, 100, 30],
-        [225, 180, 30],
-        [225, 225, 30],
-        [180, 225, 30],
-        [100, 225, 30],
-        [30, 225, 100],
-        [30, 225, 225],
-        [120, 120, 225],  
+        [255, 0, 0],
+        [255, 85, 0],
+        [255, 170, 0],
+        [255, 255, 0],
+        [170, 255, 0],
+        [85, 255, 0],
+        [0, 255, 0],
+        [0, 255, 85],
+        [0, 255, 170],
+        [0, 255, 255],
+        [0, 170, 255],
+        [0, 85, 255],
+        [0, 0, 255],
+        [85, 0, 255],
+        [170, 0, 255],
+        [255, 0, 255],
+        [255, 0, 170],
+        [255, 0, 85],
     ]
 
     # 随机选0-2根骨骼进行丢弃
@@ -253,6 +253,8 @@ def draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=True, shift_a
         shift_indices = random.sample(list(range(17)), 2)
     else:
         shift_indices = []
+    if all_cheek_aug:
+        drop_indices = list(range(13)) # 0-12对应的骨骼都扔掉
 
     for i in range(17):
         for n in range(len(subset)):
@@ -280,6 +282,9 @@ def draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=True, shift_a
     canvas = (canvas * 0.6).astype(np.uint8)
 
     for i in range(18):
+        if all_cheek_aug:
+            if not i in [0, 14, 15, 16, 17]:
+                continue
         for n in range(len(subset)):
             index = int(subset[n][i])
             if index == -1:
@@ -371,45 +376,6 @@ def draw_bodypose(canvas, candidate, subset):
 
     return canvas
 
-def draw_bodypose_points_only(canvas, candidate, subset):
-    H, W, C = canvas.shape
-    candidate = np.array(candidate)
-    subset = np.array(subset)
-
-    colors = [
-        [255, 0, 0],
-        [255, 85, 0],
-        [255, 170, 0],
-        [255, 255, 0],
-        [170, 255, 0],
-        [85, 255, 0],
-        [0, 255, 0],
-        [0, 255, 85],
-        [0, 255, 170],
-        [0, 255, 255],
-        [0, 170, 255],
-        [0, 85, 255],
-        [0, 0, 255],
-        [85, 0, 255],
-        [170, 0, 255],
-        [255, 0, 255],
-        [255, 0, 170],
-        [255, 0, 85],
-    ]
-
-    # Only draw the keypoints, skip the line drawing code
-    for i in range(18):
-        for n in range(len(subset)):
-            index = int(subset[n][i])
-            if index == -1:
-                continue
-            x, y = candidate[index][0:2]
-            x = int(x * W)
-            y = int(y * H)
-            cv2.circle(canvas, (int(x), int(y)), 4, colors[i], thickness=-1)
-
-    return canvas
-
 def draw_handpose_lr(canvas, all_hand_peaks):
     H, W, C = canvas.shape
 
@@ -462,6 +428,7 @@ def draw_handpose_lr(canvas, all_hand_peaks):
 
 def draw_handpose(canvas, all_hand_peaks):
     H, W, C = canvas.shape
+    stickwidth_thin = min(max(int(min(H, W) / 300), 1), 2)
 
     edges = [
         [0, 1],
@@ -503,7 +470,7 @@ def draw_handpose(canvas, all_hand_peaks):
                     (x2, y2),
                     matplotlib.colors.hsv_to_rgb([ie / float(len(edges)), 1.0, 1.0])
                     * 255,
-                    thickness=2,
+                    thickness=stickwidth_thin,
                 )
 
         for i, keyponit in enumerate(peaks):
@@ -511,28 +478,15 @@ def draw_handpose(canvas, all_hand_peaks):
             x = int(x * W)
             y = int(y * H)
             if x > eps and y > eps:
-                cv2.circle(canvas, (x, y), 3, (0, 0, 255), thickness=-1)
-    return canvas
-
-
-def draw_handpose_points_only(canvas, all_hand_peaks):
-    H, W, C = canvas.shape
-
-    for peaks in all_hand_peaks:
-        peaks = np.array(peaks)
-
-        # Skip the line drawing code, only keep the keypoint drawing
-        for i, keyponit in enumerate(peaks):
-            x, y = keyponit
-            x = int(x * W)
-            y = int(y * H)
-            if x > eps and y > eps:
-                cv2.circle(canvas, (x, y), 3, (0, 0, 255), thickness=-1)
+                cv2.circle(canvas, (x, y), stickwidth_thin, (0, 0, 255), thickness=-1)
     return canvas
 
 
 def draw_facepose(canvas, all_lmks, optimized_face=True):
     H, W, C = canvas.shape
+    stickwidth = min(max(int(min(H, W) / 200), 1), 3)
+    stickwidth_thin = min(max(int(min(H, W) / 300), 1), 2)
+
     for lmks in all_lmks:
         lmks = np.array(lmks)
         for lmk_idx, lmk in enumerate(lmks):
@@ -542,9 +496,9 @@ def draw_facepose(canvas, all_lmks, optimized_face=True):
             if x > eps and y > eps:
                 if optimized_face:
                     if lmk_idx in list(range(17, 27)) + list(range(36, 70)):
-                        cv2.circle(canvas, (x, y), 2, (255, 255, 255), thickness=-1)
+                        cv2.circle(canvas, (x, y), stickwidth_thin, (255, 255, 255), thickness=-1)
                 else:
-                    cv2.circle(canvas, (x, y), 3, (255, 255, 255), thickness=-1)
+                    cv2.circle(canvas, (x, y), stickwidth, (255, 255, 255), thickness=-1)
     return canvas
 
 

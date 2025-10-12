@@ -913,7 +913,7 @@ def draw_aapose_new(
             continue
         x, y = keypoint[0], keypoint[1]
         if only_cheek:
-            if _idx in [0, 14, 15, 16, 17, 3, 6, 9, 12]:   # 只画脸颊、手肘、膝盖
+            if _idx in [0, 14, 15, 16, 17]:   # 只画脸颊、手肘、膝盖
                 cv2.circle(img, (int(x), int(y)), stickwidth, color, thickness=-1)
         
         else:

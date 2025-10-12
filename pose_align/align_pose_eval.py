@@ -35,16 +35,10 @@ def draw_keypoints_with_align(image_keypoints_path, video_keypoints_path, image_
 
 
 if __name__ == "__main__":
-    # evaluation_dir = "/workspace/ywh_data/crossEval/cross_pair_eval100"
-    # num_str_list = []
-
-    # for i in range(1, 7):
-    #     num_str = f"toy{i}"
-    #     num_str_list.append(num_str)
-    # for i in range(1, 100):
-    #     num_str = f"{i:03d}"
-    #     num_str_list.append(num_str)
-    evaluation_dir = "/workspace/ywh_data/crossEval/long_test"
+    evaluation_dir = "/workspace/ywh_data/EvalCross/cross_pair_eval100"
+    for subdir in sorted(os.listdir(evaluation_dir)):
+        driving_mp4_path = os.path.join(evaluation_dir, subdir, "GT.mp4")
+        ref_jpg = os.path.join(evaluation_dir, subdir, "ref_image.jpg")
     num_str_list = [""]
     for num_str in num_str_list:
         print(f"processing {num_str}")

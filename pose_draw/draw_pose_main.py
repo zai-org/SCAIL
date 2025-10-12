@@ -21,11 +21,6 @@ from decord import VideoReader
 import copy
 
 
-
-def draw_pose_points_only(pose, H, W, show_feet=False):
-    raise NotImplementedError("draw_pose_points_only is not implemented")
-
-
 def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_face=True, show_cheek=False, dw_bgr=False, dw_hand=False, aug_body_draw=False, optimized_face=False):
     final_canvas = np.zeros(shape=(H, W, 3), dtype=np.uint8)
     for i in range(len(pose["bodies"]["candidate"])):
@@ -42,7 +37,7 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_
                     rand = random.random()
                     if rand < 0.035:  # 非常小概率
                         canvas = util.draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=False, shift_aug=True)
-                    elif rand < 0.45:
+                    elif rand < 0.3:
                         canvas = util.draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=True, shift_aug=False)   # 本身里面只有50%概率drop，也就是5帧可能有一帧drop
                     else:
                         canvas = util.draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=False, shift_aug=False)
@@ -54,9 +49,7 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_
                 canvas = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
         if show_cheek:
             assert show_body == False, "show_cheek and show_body cannot be True at the same time"
-            subset_copy = subset.copy()
-            subset_copy[:, 1:14] = -1
-            canvas = util.draw_bodypose(canvas, candidate, subset_copy)
+            canvas = util.draw_bodypose_augmentation(canvas, candidate, subset,  drop_aug=True, shift_aug=False, all_cheek_aug=True)
         if show_hand:
             if not dw_hand:
                 canvas = util.draw_handpose_lr(canvas, hands)
@@ -66,6 +59,55 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_
             canvas = util.draw_facepose(canvas, faces, optimized_face=optimized_face)
         final_canvas = final_canvas + canvas
     return final_canvas
+
+
+def scale_image_hw_keep_size(img, scale_h, scale_w):
+    """分别按 scale_h, scale_w 缩放图像，保持输出尺寸不变。"""
+    H, W = img.shape[:2]
+    new_H, new_W = int(H * scale_h), int(W * scale_w)
+    scaled = cv2.resize(img, (new_W, new_H), interpolation=cv2.INTER_LINEAR)
+
+    result = np.zeros_like(img)
+
+    # 计算在目标图上的放置范围
+    # --- Y方向 ---
+    if new_H >= H:
+        y_start_src = (new_H - H) // 2
+        y_end_src = y_start_src + H
+        y_start_dst = 0
+        y_end_dst = H
+    else:
+        y_start_src = 0
+        y_end_src = new_H
+        y_start_dst = (H - new_H) // 2
+        y_end_dst = y_start_dst + new_H
+
+    # --- X方向 ---
+    if new_W >= W:
+        x_start_src = (new_W - W) // 2
+        x_end_src = x_start_src + W
+        x_start_dst = 0
+        x_end_dst = W
+    else:
+        x_start_src = 0
+        x_end_src = new_W
+        x_start_dst = (W - new_W) // 2
+        x_end_dst = x_start_dst + new_W
+
+    # 将 scaled 映射到 result
+    result[y_start_dst:y_end_dst, x_start_dst:x_end_dst] = scaled[y_start_src:y_end_src, x_start_src:x_end_src]
+
+    return result
+
+def draw_pose_to_canvas_np(poses, pool, H, W, reshape_scale, show_feet_flag=False, show_body_flag=True, show_hand_flag=True, show_face_flag=True, show_cheek_flag=False, dw_bgr=False, dw_hand=False, aug_body_draw=False):
+    canvas_np_lst = []
+    for pose in poses:
+        if reshape_scale > 0:
+            pool.apply_random_reshapes(pose)
+        canvas = draw_pose(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag, show_cheek_flag, dw_bgr, dw_hand, aug_body_draw, optimized_face=True)
+        canvas_np_lst.append(canvas)
+    return canvas_np_lst
+
 
 def draw_pose_to_canvas(poses, pool, H, W, reshape_scale, points_only_flag, show_feet_flag, show_body_flag=True, show_hand_flag=True, show_face_flag=True, show_cheek_flag=False, dw_bgr=False, dw_hand=False, aug_body_draw=False):
     canvas_lst = []

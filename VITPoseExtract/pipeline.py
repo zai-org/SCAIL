@@ -45,14 +45,16 @@ def get_face_bboxes(kp2ds, scale, image_shape):
 
 
 
-def get_cond_images(first_frame_np, tpl_pose_metas, only_cheek=True):
+def get_cond_images(first_frame_np, tpl_pose_metas, only_cheek=True, draw_hand=True, dw_bgr=False):
         cond_images = []
 
         for idx, meta_list in enumerate(tpl_pose_metas):
             tpl_pose_metas_list = [AAPoseMeta.from_humanapi_meta(meta) for meta in meta_list]
             canvas = np.zeros_like(first_frame_np)
             for _, meta in enumerate(tpl_pose_metas_list):
-                canvas = draw_aapose_by_meta_new(canvas, meta, only_cheek=only_cheek)
+                canvas = draw_aapose_by_meta_new(canvas, meta, only_cheek=only_cheek, draw_hand=draw_hand)
+                if dw_bgr:
+                    canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
             cond_images.append(canvas)
         return cond_images
 

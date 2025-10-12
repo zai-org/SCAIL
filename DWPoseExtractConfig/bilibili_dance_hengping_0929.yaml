@@ -1,0 +1,10 @@
+# 处理进度见/workspace/ywh_data/DataProcess/ProcessDataViaAPI/process_config.yaml
+video_root: "/workspace/ywh_data/DataProcessNew/bilibili_dance_hengping_0929"
+wds_root: "/workspace/data1/video_and_image_datas/processed_videos_wds_datas/bilibili/bilibili_dance_hengping_0929"
+max_samples_per_gpu: 50000
+
+filter_args:
+  use_filter: True
+  save_mp4: True
+  use_fail_prompt: True
+  reshape: "high"

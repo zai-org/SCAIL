@@ -10,7 +10,7 @@ from collections import deque
 import shutil
 import torch
 import yaml
-from pose_draw.draw_pose_main import draw_pose_to_canvas, reshapePool
+from pose_draw.draw_pose_main import draw_pose_to_canvas_np, reshapePool
 from extractUtils import check_single_human_requirements, check_multi_human_requirements, human_select
 import webdataset as wds
 from torch.utils.data import DataLoader
@@ -66,7 +66,7 @@ def process_fn_video(src, meta_dict=None):
 
         yield item
 
-def reshape_render_to_wds(detector_vitpose, wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render):
+def reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render):
     obj_list = []
     meta_dict = {}
     meta_file = wds_path.replace('.tar', '.meta.jsonl')
@@ -99,7 +99,6 @@ def reshape_render_to_wds(detector_vitpose, wds_path, output_wds_path, save_dir_
             frames_np_motion = vr.get_batch(motion_indices).asnumpy()
             first_frame_np = frames_np_motion[0]
             try:
-                tpl_pose_metas_motion = detector_vitpose(frames_np_motion)
                 keypoints = torch.load(os.path.join(save_dir_keypoints, key + '.pt'), weights_only=False)
                 keypoints_in_motion = [keypoints[idx] for idx in motion_indices]
                 smpl_rendered_path = os.path.join(save_dir_smpl_render, key + '.mp4')
@@ -111,10 +110,17 @@ def reshape_render_to_wds(detector_vitpose, wds_path, output_wds_path, save_dir_
                 tmp_dir = '/dev/shm/tmp'
                 os.makedirs(tmp_dir, exist_ok=True)
 
-                hybrid_cheek_video_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0.6, only_cheek=True)
-                hybrid_cheek_video_no_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0, only_cheek=True)
-                hybrid_video_full_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0.6, only_cheek=False)
-                hybrid_video_full_no_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0, only_cheek=False)
+                # hybrid_cheek_video_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0.6, only_cheek=True)
+                # hybrid_cheek_video_no_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0, only_cheek=True)
+                # hybrid_video_full_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0.6, only_cheek=False)
+                # hybrid_video_full_no_aug = get_hybrid_video(first_frame_np, copy.deepcopy(keypoints_in_motion), copy.deepcopy(tpl_pose_metas_motion), height, width, reshape_scale=0, only_cheek=False)
+                reshape_pool = reshapePool(reshape_scale=0.6, H=height, W=width)
+
+                hybrid_cheek_video_aug = draw_pose_to_canvas_np(copy.deepcopy(keypoints_in_motion), pool=reshape_pool, H=height, W=width, reshape_scale=0.6, show_body_flag=False, show_cheek_flag=True)
+                hybrid_cheek_video_no_aug = draw_pose_to_canvas_np(copy.deepcopy(keypoints_in_motion), pool=None, H=height, W=width, reshape_scale=0, show_body_flag=False, show_cheek_flag=True)
+                hybrid_video_full_aug = draw_pose_to_canvas_np(copy.deepcopy(keypoints_in_motion), pool=reshape_pool, H=height, W=width, reshape_scale=0.6, show_body_flag=True, show_cheek_flag=False)
+                # hybrid_video_full_no_aug = draw_pose_to_canvas_np(copy.deepcopy(keypoints_in_motion), pool=None, H=height, W=width, reshape_scale=0, show_body_flag=True, show_cheek_flag=False)
+
                 hybrid_cheek_video_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_cheek_aug.mp4')
                 hybrid_cheek_video_no_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_cheek_no_aug.mp4')
                 hybrid_video_full_aug_path = os.path.join(tmp_dir, f'{key}_hybrid_full_aug.mp4')
@@ -159,11 +165,11 @@ def reshape_render_to_wds(detector_vitpose, wds_path, output_wds_path, save_dir_
         writer.close()
         
 
-def process_tar_chunk(detector_vitpose, chunk, input_root, output_root, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render):
+def process_tar_chunk(chunk, input_root, output_root, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render):
     for wds_path in chunk:
         rel_path = os.path.relpath(wds_path, input_root)
         output_wds_path = os.path.join(output_root, rel_path)
-        reshape_render_to_wds(detector_vitpose, wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render)
+        reshape_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render)
         gc.collect()
     
 def load_config(config_path):
@@ -218,8 +224,7 @@ if __name__ == "__main__":
     current_tar_paths = input_tar_paths[current_process::max_processes]
     if len(current_tar_paths) == 0:
         print("No chunks to process")
-    detector_vitpose = VITPosePipeline(det_checkpoint_path="/workspace/yanwenhao/Wan2.2/Wan2.2-Animate-14B/process_checkpoint/det/yolov10m.onnx", pose2d_checkpoint_path="/workspace/yanwenhao/Wan2.2/Wan2.2-Animate-14B/process_checkpoint/pose2d/vitpose_h_wholebody.onnx")
-    process_tar_chunk(detector_vitpose, current_tar_paths, input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render)
+    process_tar_chunk(current_tar_paths, input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render)
 
 
 
