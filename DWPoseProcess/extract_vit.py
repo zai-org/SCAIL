@@ -66,7 +66,7 @@ def process_fn_video(src, meta_dict=None):
 
         yield item
 
-def extract_vit(detector_vitpose, wds_path, save_dir_vitpose):
+def  extract_vit(detector_vitpose, wds_path, save_dir_vitpose):
     meta_dict = {}
     meta_file = wds_path.replace('.tar', '.meta.jsonl')
     meta_lines = open(meta_file).readlines()

@@ -7,3 +7,4 @@ filter_args:
   save_mp4: True
   use_fail_prompt: True
   reshape: "normal"
+  finetune_num: 500

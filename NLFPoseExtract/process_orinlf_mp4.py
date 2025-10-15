@@ -18,7 +18,7 @@ from DWPoseProcess.dwpose import DWposeDetector
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 import traceback
-from DWPoseProcess.extract_nlfpose import process_video_nlf
+from DWPoseProcess.extract_nlfpose import process_video_nlf_original
 from NLFPoseExtract.reshape_utils_3d import reshapePool3d
 try:
     import moviepy.editor as mpy
@@ -50,41 +50,17 @@ if __name__ == '__main__':
         vr = VideoReader(mp4_path)
         vr_frames = vr.get_batch(list(range(len(vr))))
         height, width = vr_frames.shape[1], vr_frames.shape[2]
+        ori_frame_list = []
+        for vr_frame in vr_frames:
+            ori_frame_list.append(vr_frame.cpu().numpy())
 
 
-        if os.path.exists(poses_cache_path) and os.path.exists(det_cache_path) and os.path.exists(nlf_cache_path):
-            poses = torch.load(poses_cache_path)
-            bboxes = torch.load(det_cache_path)
-            with open(nlf_cache_path, 'rb') as f:
-                nlf_results = pickle.load(f)
+        
+        nlf_results = process_video_nlf_original(model_nlf, vr_frames)
+        results = render_nlf_as_images(nlf_results, None, reshape_pool=None)
+        results = [np.concatenate([results[i][:,:,:3], ori_frame_list[i]], axis=1) for i in range(len(results))]
+        mpy.ImageSequenceClip(results, fps=16).write_videofile(out_path_ori)
 
-            # reshapepool = reshapePool3d(reshape_type="high", height=height, width=width)
-            # frames_np = render_nlf_as_images(nlf_results, poses, reshape_pool=reshapepool)
-            # mpy.ImageSequenceClip(frames_np, fps=16).write_videofile(out_path_aligned)
-            frames_ori_np = render_nlf_as_images(nlf_results, poses, reshape_pool=None)
-            mpy.ImageSequenceClip(frames_ori_np, fps=16).write_videofile(out_path_ori)
-        else:
-            detector = DWposeDetector(use_batch=False).to(0)
-            detector_return_list = []
-
-            # 逐帧解码
-            pil_frames = []
-            for i in range(len(vr_frames)):
-                pil_frame = Image.fromarray(vr_frames[i].numpy())
-                pil_frames.append(pil_frame)
-                detector_result = detector(pil_frame)
-                detector_return_list.append(detector_result)
-
-
-            W, H = pil_frames[0].size
-
-            poses, scores, det_results = zip(*detector_return_list) # 这里存的是整个视频的poses
-            nlf_results = process_video_nlf(model_nlf, vr_frames, det_results)
-
-            torch.save(poses, poses_cache_path)
-            torch.save(det_results, det_cache_path)
-            with open(nlf_cache_path, 'wb') as f:
-                pickle.dump(nlf_results, f)
 
         
 

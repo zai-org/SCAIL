@@ -35,6 +35,16 @@ import copy
 from NLFPoseExtract.nlf_draw import intrinsic_matrix_from_field_of_view, process_data_to_COCO_format, p3d_to_p2d
 from NLFPoseExtract.smpl_joint_xyz import compute_motion_speed, compute_motion_range
 
+def collect_nlf(data):
+    uncollected_smpl_poses = [item['nlfpose'] for item in data]
+    smpl_poses = [[] for _ in range(len(uncollected_smpl_poses))]
+    for frame_idx in range(len(uncollected_smpl_poses)):
+        for person_idx in range(len(uncollected_smpl_poses[frame_idx])):  # 每个人（每个bbox）只给出一个pose
+            if len(uncollected_smpl_poses[frame_idx][person_idx]) > 0:    # 有返回的骨骼
+                smpl_poses[frame_idx].append(uncollected_smpl_poses[frame_idx][person_idx][0].cpu())
+            else:
+                smpl_poses[frame_idx].append(torch.zeros((24, 3), dtype=torch.float32).cpu())  # 没有检测到人，就放一个全0的
+    return smpl_poses
 
 def project_dwpose_to_3d(dwpose_keypoint, original_threed_keypoint, focal, princpt, H, W):
     # 相机内参
@@ -158,7 +168,8 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
         ori_poses = torch.load(keypoint_path, weights_only=False)
         ori_bboxes = torch.load(bbox_path, weights_only=False)
         ori_smpl = pickle.load(open(smpl_path, 'rb'))
-        smpl_data = ori_smpl['pose']['joints3d_nonparam']
+        collected_nlf = collect_nlf(ori_smpl)
+        smpl_ori_data = [torch.stack(collected_nlf[i]) for i in range(len(collected_nlf))]
         target_fps = 16
 
         H, W = height, width
@@ -172,7 +183,7 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
 
         poses = [ori_poses[index] for index in pick_indices]
         bboxes = [ori_bboxes[index] for index in pick_indices]
-        smpl_extracted_data = [smpl_data[index] for index in pick_indices]
+        smpl_extracted_data = [smpl_ori_data[index] for index in pick_indices]
         valid_lengths = [length for length in possible_lengths if length <= len(poses)]
         valid_lengths.sort(reverse=True)
         final_motion_indices = None
@@ -214,9 +225,7 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
                     else:
                         final_ref_image_indices = ref_part_check_indices
                     # 转换索引
-                    joints3d = ori_smpl['pose']['joints3d_nonparam']
-                    joints3d = [joints3d[i] for i in motion_part_indices.tolist()]
-                    motion_speed = compute_motion_speed(joints3d)
+                    motion_speed = compute_motion_speed([smpl_ori_data[i] for i in motion_part_indices.tolist()])
                     if motion_speed is None or motion_speed < 16:
                         start_index += random.randint(3, 4)
                         continue

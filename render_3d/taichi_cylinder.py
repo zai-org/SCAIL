@@ -28,7 +28,7 @@ def flatten_specs(specs_list):
         np.array(frame_count, dtype=np.int32),
     )
 
-def render_whole(specs_list, H=480, W=640, fx=500, fy=500, cx=240,  cy=320):
+def render_whole(specs_list, H=480, W=640, fx=500, fy=500, cx=240, cy=320, radius=21.5):
     img = ti.Vector.field(4, dtype=ti.f32, shape=(H, W))
     starts, ends, colors, frame_offset, frame_count = flatten_specs(specs_list)
     total_cyl = len(starts)
@@ -88,7 +88,7 @@ def render_whole(specs_list, H=480, W=640, fx=500, fy=500, cx=240,  cy=320):
         for i in range(cnt):  # 只遍历实际数量
             a = c_start[off + i]
             b = c_end[off + i]
-            r = 21.5
+            r = radius
             col = c_rgba[off + i]
             d = sd_cylinder(p, a, b, r)
             if d < best_d:

@@ -95,6 +95,59 @@ def process_video_nlf(model, vr_frames, bboxes):
     return pose_meta_list
 
 
+def process_video_nlf_original(model, vr_frames):
+    # Ensure output directory exists
+    # pose_results = {
+    #     'joints3d_nonparam': [],
+    # }
+    pose_meta_list = []
+    vr_frames = vr_frames.cuda()
+    height, width = vr_frames.shape[1], vr_frames.shape[2]
+    result_list = []
+    people_count_list = []
+
+    batch_size = 64
+    buffer = torch.zeros(
+        (batch_size, height, width, 3),
+        dtype=vr_frames.dtype,
+        device='cuda'
+    )
+    buffer_count = 0
+    with torch.inference_mode(), torch.device('cuda'):
+        for frame in vr_frames:
+            buffer[buffer_count] = frame
+            buffer_count += 1
+
+            # 一旦 buffer 满了，推理并清空
+            if buffer_count == batch_size:
+                frame_batch = buffer.permute(0, 3, 1, 2)
+                pred = model.detect_smpl_batched(frame_batch)
+                if 'joints3d_nonparam' in pred:
+                    result_list.extend(pred['joints3d_nonparam'])
+                else:
+                    result_list.extend([None] * buffer_count)
+
+                buffer.zero_()
+                buffer_count = 0
+
+        # 处理最后不满一批的残余
+        if buffer_count > 0:
+            frame_batch = buffer[:buffer_count].permute(0, 3, 1, 2)
+            pred = model.detect_smpl_batched(frame_batch)
+            if 'joints3d_nonparam' in pred:
+                result_list.extend(pred['joints3d_nonparam'])
+            else:
+                result_list.extend([None] * buffer_count)
+
+    index = 0
+    for index in range(len(vr_frames)):
+        pose_meta_list.append({"video_height": height, "video_width": width, "bboxes": None, "nlfpose": result_list[index]})
+    
+    del buffer               # 删除 Python 引用
+    torch.cuda.empty_cache()
+    return pose_meta_list
+
+
 def process_fn_video(src, bbox_dir):
     worker_info = torch.utils.data.get_worker_info()
     for i, r in enumerate(src):
