@@ -6,3 +6,4 @@ logs/
 NLFPoseExtract/nlf_l_multi_0.3.2.torchscript
 render_3d/test_render_cylinder.png
 multi_test/
+preview_videos/

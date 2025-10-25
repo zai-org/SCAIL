@@ -8,4 +8,4 @@ filter_args:
   save_mp4: True
   use_fail_prompt: True
   reshape: "high"
-  finetune_num: 2000
+  finetune_num: 2500

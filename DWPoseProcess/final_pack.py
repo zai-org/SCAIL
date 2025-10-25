@@ -33,7 +33,6 @@ import glob
 import pickle
 import copy
 import traceback
-from DWPoseProcess.extract_mp4_hybrid_eval import get_hybrid_video
 from VITPoseExtract.pipeline import VITPosePipeline
 try:
     import moviepy.editor as mpy
@@ -61,6 +60,10 @@ def process_fn_video(src, meta_dict=None):
         if motion_indices is None:
             print(f"skip {r['__key__']}, no motion_indices")
             continue
+        new_caption = r.get('long_caption_v5', None)
+        print(f"debug: new_caption: {new_caption}")
+        if new_caption is not None:
+            item['recaption'] = new_caption
         
         item.update({'motion_indices': motion_indices})
 
@@ -97,7 +100,8 @@ def pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_d
             try:
                 smpl_rendered_path = os.path.join(save_dir_smpl_render, key + '.mp4')
                 smpl_rendered_aug_path = os.path.join(save_dir_smpl_render_aug, key + '.mp4')
-                if not os.path.exists(smpl_rendered_path):
+                smpl_rendered_noface_path = os.path.join(save_dir_smpl_render_aug.replace('smpl_render_aug', 'smpl_render_noface'), key + '.mp4')
+                if not os.path.exists(smpl_rendered_path) or not os.path.exists(smpl_rendered_aug_path) or not os.path.exists(smpl_rendered_noface_path):
                     print(f"skip {key}, no smpl rendered")
                     continue
                 
@@ -106,9 +110,13 @@ def pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_d
 
                 with open(smpl_rendered_aug_path, "rb") as f:
                     smpl_render_data_aug = f.read()
+                
+                with open(smpl_rendered_noface_path, "rb") as f:
+                    smpl_render_data_noface = f.read()
 
                 data['append_smpl_render'] = smpl_render_data
                 data['append_smpl_render_aug'] = smpl_render_data_aug
+                data['append_smpl_render_noface'] = smpl_render_data_noface
 
                 data.pop('motion_indices')
                 obj_list.append(meta_dict.get(key, None))
@@ -144,7 +152,7 @@ if __name__ == "__main__":
                         help='Path to YAML configuration file')
     parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0929_step3',
                         help='Input root')
-    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0929_step5',
+    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0929_step5_1019',
                         help='Output root')
     parser.add_argument('--max_processes', type=int, default=8,
                         help='Max processes')

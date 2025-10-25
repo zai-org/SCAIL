@@ -20,6 +20,7 @@ import multiprocessing
 import traceback
 from DWPoseProcess.extract_nlfpose import process_video_nlf
 from NLFPoseExtract.reshape_utils_3d import reshapePool3d
+import copy
 try:
     import moviepy.editor as mpy
 except:
@@ -30,17 +31,15 @@ except:
 if __name__ == '__main__':
     model_nlf = torch.jit.load("/workspace/yanwenhao/dwpose_draw/NLFPoseExtract/nlf_l_multi_0.3.2.torchscript").cuda().eval()
 
-    # evaluation_dir = "/workspace/ywh_data/EvalSelf/evaluation_300_old"
-    evaluation_dir = "/workspace/yanwenhao/dwpose_draw/multi_test/results"
+    evaluation_dir = "/workspace/ywh_data/EvalSelf/evaluation_300_old"
+    # evaluation_dir = "/workspace/yanwenhao/dwpose_draw/multi_test/results"
     decord.bridge.set_bridge("torch")
 
     for subdir_idx, subdir in tqdm(enumerate(sorted(os.listdir(evaluation_dir)))):
-        # if subdir != "005":
-        #     continue
-        # mp4_path = os.path.join(evaluation_dir, subdir, 'GT.mp4')
-        mp4_path = os.path.join(evaluation_dir, subdir, 'raw_video.mp4')
-        # out_path_aligned = os.path.join(evaluation_dir, subdir, 'smpl_hybrid_aligned.mp4')
-        out_path_ori = os.path.join(evaluation_dir, subdir, 'smpl_hybrid.mp4')
+        if subdir != "010":
+            continue
+        mp4_path = os.path.join(evaluation_dir, subdir, 'GT.mp4')
+        out_path = os.path.join(evaluation_dir, subdir, 'smpl_hybrid_test.mp4')
         meta_cache_dir = os.path.join(evaluation_dir, subdir, 'meta')
         poses_cache_path = os.path.join(meta_cache_dir, 'keypoints.pt')
         det_cache_path = os.path.join(meta_cache_dir, 'bboxes.pt')
@@ -58,11 +57,13 @@ if __name__ == '__main__':
             with open(nlf_cache_path, 'rb') as f:
                 nlf_results = pickle.load(f)
 
-            # reshapepool = reshapePool3d(reshape_type="high", height=height, width=width)
-            # frames_np = render_nlf_as_images(nlf_results, poses, reshape_pool=reshapepool)
-            # mpy.ImageSequenceClip(frames_np, fps=16).write_videofile(out_path_aligned)
-            frames_ori_np = render_nlf_as_images(nlf_results, poses, reshape_pool=None)
-            mpy.ImageSequenceClip(frames_ori_np, fps=16).write_videofile(out_path_ori)
+            reshapepool = reshapePool3d(reshape_type="high", height=height, width=width)
+            # body_pool = ["elf", "random_long_arm_long_leg", "king-kong", "test_case"]
+            body_pool = ["test_case"]
+            for body_type in body_pool:
+                reshapepool.aug_init(body_type)
+                frames_ori_np = render_nlf_as_images(copy.deepcopy(nlf_results), poses, reshape_pool=reshapepool, aug_2d=False)
+                mpy.ImageSequenceClip(frames_ori_np, fps=16).write_videofile(out_path.replace('.mp4', f'_{body_type}.mp4'))
         else:
             detector = DWposeDetector(use_batch=False).to(0)
             detector_return_list = []

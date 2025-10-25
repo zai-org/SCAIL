@@ -246,7 +246,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='video_directories.yaml', 
                         help='Path to YAML configuration file')
-    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_pack_wds_0923_step1',
+    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_pack_wds_0923add_step1',
                         help='Input root')
     parser.add_argument('--local_rank', type=int, default=0,
                         help='Local rank')

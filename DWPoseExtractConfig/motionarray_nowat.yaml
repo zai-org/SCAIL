@@ -5,6 +5,7 @@ max_samples_per_gpu: 50000
 
 filter_args:
   use_filter: True
+  select_speed: 10
   save_mp4: True
   use_fail_prompt: False
-  reshape: "low"
+  reshape: "normal"

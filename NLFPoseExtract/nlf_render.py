@@ -15,6 +15,41 @@ import copy
 import random
 import torch
 
+def p3d_single_p2d(points, intrinsic_matrix):
+    X, Y, Z = points[0], points[1], points[2]
+    u = (intrinsic_matrix[0, 0] * X / Z) + intrinsic_matrix[0, 2]
+    v = (intrinsic_matrix[1, 1] * Y / Z) + intrinsic_matrix[1, 2]
+    u_np = u.cpu().numpy()
+    v_np = v.cpu().numpy()
+    return np.array([u_np, v_np])
+
+
+def shift_dwpose_according_to_nlf(smpl_poses, aligned_poses, ori_intrinstics, modified_intrinstics, height, width):
+    ########## warning: 会改变body； shift 之后 body是不准的 ##########
+    for i in range(len(smpl_poses)):
+        persons_joints_list = smpl_poses[i]
+        poses_list = aligned_poses[i]
+        # 对里面每一个人，取关节并进行变形；并且修改2d；如果3d不存在，把2d的手/脸也去掉
+        for person_idx, person_joints in enumerate(persons_joints_list):
+            face = poses_list["faces"][person_idx]
+            right_hand = poses_list["hands"][2 * person_idx]
+            left_hand = poses_list["hands"][2 * person_idx + 1]
+            candidate = poses_list["bodies"]["candidate"][person_idx]
+            # 注意，这里不是coco format
+            person_joint_15_2d_shift = p3d_single_p2d(person_joints[15], modified_intrinstics) - p3d_single_p2d(person_joints[15], ori_intrinstics) if person_joints[15, 2] > 0.01 else np.array([0.0, 0.0])  # face
+            person_joint_20_2d_shift = p3d_single_p2d(person_joints[20], modified_intrinstics) - p3d_single_p2d(person_joints[20], ori_intrinstics) if person_joints[20, 2] > 0.01 else np.array([0.0, 0.0])  # right hand
+            person_joint_21_2d_shift = p3d_single_p2d(person_joints[21], modified_intrinstics) - p3d_single_p2d(person_joints[21], ori_intrinstics) if person_joints[21, 2] > 0.01 else np.array([0.0, 0.0])  # left hand
+
+            face[:, 0] += person_joint_15_2d_shift[0] / width
+            face[:, 1] += person_joint_15_2d_shift[1] / height
+            right_hand[:, 0] += person_joint_20_2d_shift[0] / width
+            right_hand[:, 1] += person_joint_20_2d_shift[1] / height
+            left_hand[:, 0] += person_joint_21_2d_shift[0] / width
+            left_hand[:, 1] += person_joint_21_2d_shift[1] / height
+            candidate[:, 0] += person_joint_15_2d_shift[0] / width
+            candidate[:, 1] += person_joint_15_2d_shift[1] / height
+
+
 def get_single_pose_cylinder_specs(args):
     """渲染单个pose的辅助函数，用于并行处理"""
     idx, pose, focal, princpt, height, width, colors, limb_seq, draw_seq = args
@@ -31,11 +66,24 @@ def get_single_pose_cylinder_specs(args):
             else:
                 cylinder_specs.append((joints3d[start], joints3d[end], colors[line_idx]))
     return cylinder_specs
+
+
+def collect_smpl_poses(data):
+    uncollected_smpl_poses = [item['nlfpose'] for item in data]
+    smpl_poses = [[] for _ in range(len(uncollected_smpl_poses))]
+    for frame_idx in range(len(uncollected_smpl_poses)):
+        for person_idx in range(len(uncollected_smpl_poses[frame_idx])):  # 每个人（每个bbox）只给出一个pose
+            if len(uncollected_smpl_poses[frame_idx][person_idx]) > 0:    # 有返回的骨骼
+                smpl_poses[frame_idx].append(uncollected_smpl_poses[frame_idx][person_idx][0])
+            else:
+                smpl_poses[frame_idx].append(torch.zeros((24, 3), dtype=torch.float32))  # 没有检测到人，就放一个全0的
+
+    return smpl_poses
     
 
 
 
-def render_nlf_as_images(data, poses, reshape_pool=None):
+def render_nlf_as_images(data, poses, reshape_pool=None, intrinsic_matrix=None, draw_2d=True, aug_2d=False, aug_cam=False):
     """ return a list of images """
     height, width = data[0]['video_height'], data[0]['video_width']
     video_length = len(data)
@@ -115,30 +163,15 @@ def render_nlf_as_images(data, poses, reshape_pool=None):
                 ]   # 从近心端往外扩展
 
     colors = [[c / 300 + 0.15 for c in color_rgb] + [0.8] for color_rgb in ordered_colors_255]
-    intrinsic_matrix = intrinsic_matrix_from_field_of_view((height, width))
-    focal = intrinsic_matrix[0,0]
-    princpt = (intrinsic_matrix[0,2], intrinsic_matrix[1,2])  # 主点 (cx, cy)
-    uncollected_smpl_poses = [item['nlfpose'] for item in data]
+    
 
-    # 获取min_z，并重新收集poses
+
+    
     if poses is not None:
-        min_z = float('inf')
-        smpl_poses = [[] for _ in range(len(uncollected_smpl_poses))]
-        for frame_idx in range(len(uncollected_smpl_poses)):
-            for person_idx in range(len(uncollected_smpl_poses[frame_idx])):  # 每个人（每个bbox）只给出一个pose
-                if len(uncollected_smpl_poses[frame_idx][person_idx]) > 0:    # 有返回的骨骼
-                    smpl_poses[frame_idx].append(uncollected_smpl_poses[frame_idx][person_idx][0])
-                    for joint_idx in range(len(uncollected_smpl_poses[frame_idx][person_idx][0])):
-                        z_value = uncollected_smpl_poses[frame_idx][person_idx][0][joint_idx][2].item()
-                        if z_value < min_z:
-                            min_z = z_value
-                else:
-                    smpl_poses[frame_idx].append(torch.zeros((24, 3), dtype=torch.float32))  # 没有检测到人，就放一个全0的
-
-
+        # 重新收集poses
+        smpl_poses = collect_smpl_poses(data)
         aligned_poses = copy.deepcopy(poses)
         if reshape_pool is not None:
-            reshape_pool.set_offset_3d_z(min_z)
             for i in range(video_length):
                 persons_joints_list = smpl_poses[i]
                 poses_list = aligned_poses[i]
@@ -149,33 +182,38 @@ def render_nlf_as_images(data, poses, reshape_pool=None):
                     face = poses_list["faces"][person_idx]
                     right_hand = poses_list["hands"][2 * person_idx]
                     left_hand = poses_list["hands"][2 * person_idx + 1]
-                    # print(f"debug: person_joints.shape: {person_joints.shape}")
                     reshape_pool.apply_random_reshapes(person_joints, candidate, left_hand, right_hand, face, subset)
     else:
-        smpl_poses = [item['nlfpose'] for item in data]
-        min_z = float('inf')
-        for frame_idx in range(len(smpl_poses)):
-            for person_idx in range(len(smpl_poses[frame_idx])):
-                for joint_idx in range(len(smpl_poses[frame_idx][person_idx])):
-                    z_value = smpl_poses[frame_idx][person_idx][joint_idx][2].item()
-                    if z_value < min_z:
-                        min_z = z_value
+        smpl_poses = [item['nlfpose'] for item in data]      # 主要为了兼容多人评测集；搭配process_video_nlf_original
 
 
+    if intrinsic_matrix is None:
+        intrinsic_matrix = intrinsic_matrix_from_field_of_view((height, width))
+    focal_x = intrinsic_matrix[0,0]
+    focal_y = intrinsic_matrix[1,1]
+    princpt = (intrinsic_matrix[0,2], intrinsic_matrix[1,2])  # 主点 (cx, cy)
+    if aug_cam and random.random() < 0.3:
+        w_shift_factor = random.uniform(-0.04, 0.04)
+        h_shift_factor = random.uniform(-0.04, 0.04)
+        princpt = (princpt[0] - w_shift_factor * width, princpt[1] - h_shift_factor * height)   # princpt变化和点的变化相反
+        new_intrinsic_matrix = copy.deepcopy(intrinsic_matrix)
+        new_intrinsic_matrix[0,2] = princpt[0]
+        new_intrinsic_matrix[1,2] = princpt[1]
+        shift_dwpose_according_to_nlf(smpl_poses, aligned_poses, intrinsic_matrix, new_intrinsic_matrix, height, width)
                 
     # 串行获取每一帧的cylinder_specs
     cylinder_specs_list = []
     for i in range(video_length):
-        cylinder_specs = get_single_pose_cylinder_specs((i, smpl_poses[i], focal, princpt, height, width, colors, limb_seq, draw_seq))
+        cylinder_specs = get_single_pose_cylinder_specs((i, smpl_poses[i], None, None, None, None, colors, limb_seq, draw_seq))
         cylinder_specs_list.append(cylinder_specs)
 
 
-    frames_np_rgba = render_whole(cylinder_specs_list, H=height, W=width, fx=focal, fy=focal, cx=princpt[0], cy=princpt[1])
-    if poses is not None:
+    frames_np_rgba = render_whole(cylinder_specs_list, H=height, W=width, fx=focal_x, fy=focal_y, cx=princpt[0], cy=princpt[1])
+    if poses is not None and draw_2d:
         canvas_2d = draw_pose_to_canvas_np(aligned_poses, pool=None, H=height, W=width, reshape_scale=0, show_feet_flag=False, show_body_flag=False, show_cheek_flag=True, dw_hand=True)
         # 覆盖 + rescale
-        scale_h = random.uniform(0.85, 1.04)
-        scale_w = random.uniform(0.85, 1.04)
+        scale_h = random.uniform(0.85, 1.15)
+        scale_w = random.uniform(0.85, 1.15)
         rescale_flag = random.random() < 0.4 if reshape_pool is not None else False
         for i in range(len(frames_np_rgba)):
             frame_img = frames_np_rgba[i]
@@ -183,12 +221,25 @@ def render_nlf_as_images(data, poses, reshape_pool=None):
             mask = canvas_img != 0
             frame_img[:, :, :3][mask] = canvas_img[mask]
             frames_np_rgba[i] = frame_img
-            if rescale_flag:
-                frames_np_rgba[i]  = scale_image_hw_keep_size(frames_np_rgba[i], scale_h, scale_w)
-            if reshape_pool is not None:
-                # 4%的概率完全消除某些帧
-                if random.random() < 0.04:
-                    frames_np_rgba[i][:, :, 0:3] = 0
+            if aug_2d:
+                if rescale_flag:
+                    frames_np_rgba[i]  = scale_image_hw_keep_size(frames_np_rgba[i], scale_h, scale_w)
+                if reshape_pool is not None:
+                    # 4%的概率完全消除某些帧
+                    if random.random() < 0.04:
+                        frames_np_rgba[i][:, :, 0:3] = 0
+    else:
+        scale_h = random.uniform(0.85, 1.15)
+        scale_w = random.uniform(0.85, 1.15)
+        rescale_flag = random.random() < 0.4 if reshape_pool is not None else False
+        for i in range(len(frames_np_rgba)):
+            if aug_2d:
+                if rescale_flag:
+                    frames_np_rgba[i]  = scale_image_hw_keep_size(frames_np_rgba[i], scale_h, scale_w)
+                if reshape_pool is not None:
+                    # 4%的概率完全消除某些帧
+                    if random.random() < 0.04:
+                        frames_np_rgba[i][:, :, 0:3] = 0
 
     return frames_np_rgba
 

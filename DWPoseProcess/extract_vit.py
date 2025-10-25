@@ -33,7 +33,6 @@ import glob
 import pickle
 import copy
 import traceback
-from DWPoseProcess.extract_mp4_hybrid_eval import get_hybrid_video
 from VITPoseExtract.pipeline import VITPosePipeline
 try:
     import moviepy.editor as mpy

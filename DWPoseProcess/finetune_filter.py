@@ -35,7 +35,6 @@ import glob
 import pickle
 import copy
 import traceback
-from DWPoseProcess.extract_mp4_hybrid_eval import get_hybrid_video
 from NLFPoseExtract.smpl_joint_xyz import compute_motion_speed, compute_motion_range
 from NLFPoseExtract.smpl_joint_change import get_most_abrupt_change
 from VITPoseExtract.pipeline import VITPosePipeline
@@ -117,7 +116,9 @@ def get_motion_dict(wds_path, save_dir_smpl):
                 # print(f"skip {key}, max_dz too large: {max_dz}")
                 continue
             else:
-                motion_score_dict[key] = compute_motion_speed(input_data)
+                motion_speed = compute_motion_speed(input_data)
+                if motion_speed is not None and motion_speed > 12:
+                    motion_score_dict[key] = motion_speed
         except Exception as e:
             print(f"skip {key}, smpl load error: {e}")
             print(f"Error traceback:")
@@ -189,9 +190,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='video_directories.yaml', 
                         help='Path to YAML configuration file')
-    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0929_step5',
+    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0929_step5_1013',
                         help='Input root')
-    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_finetune_wds_0929_step5',
+    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_finetune_wds_0929_step5_1013',
                         help='Output root')
 
     args = parser.parse_args()
@@ -223,7 +224,7 @@ if __name__ == "__main__":
     # Split wds_list into chunks
     input_tar_paths = sorted(glob.glob(os.path.join(input_dir, "**", "*.tar"), recursive=True))
     all_motion_dict = {}
-    for input_tar in input_tar_paths[:150]:       # 仅测试，记得去掉
+    for input_tar in input_tar_paths[:200]:       # 仅测试，记得去掉
         motion_dict = get_motion_dict(input_tar, save_dir_smpl)
         all_motion_dict.update(motion_dict)
 
@@ -231,6 +232,7 @@ if __name__ == "__main__":
     top_count = min(finetune_num, len(sorted_motion_items))  # 防止总数少于1000
     top_items = sorted_motion_items[:top_count]
     top_keys = [item[0] for item in top_items]
+    print(f"debug: selected top {top_count} samples for finetune")
     process_tar_list_to_new_tar(input_tar_paths, top_keys, output_dir)
 
 

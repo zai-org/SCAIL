@@ -4,6 +4,7 @@ wds_root: "/workspace/data1/video_and_image_datas/processed_videos_wds_datas/sto
 
 filter_args:
   use_filter: True
+  select_speed: 8
   save_mp4: True
   use_fail_prompt: False
   reshape: "normal"

@@ -4,7 +4,8 @@ wds_root: "/workspace/data1/video_and_image_datas/processed_videos_wds_datas/mmd
 max_detector_threads: 4
 
 filter_args:
-  use_filter: True
+  use_filter: False
+  no_interval: True
   save_mp4: True
   use_fail_prompt: True
   reshape: "normal"

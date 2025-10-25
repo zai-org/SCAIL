@@ -21,11 +21,11 @@ import traceback
 from DWPoseProcess.extract_nlfpose import process_video_nlf_original
 from pose_draw.draw_pose_main import draw_pose_to_canvas_np
 from NLFPoseExtract.reshape_utils_3d import reshapePool3d
+from NLFPoseExtract.nlf_draw import preview_nlf_2d_ori
 try:
     import moviepy.editor as mpy
 except:
     import moviepy as mpy
-
 
 
 if __name__ == '__main__':
@@ -34,7 +34,8 @@ if __name__ == '__main__':
 
 
     # evaluation_dir = "/workspace/ywh_data/EvalSelf/evaluation_300_old"
-    evaluation_dir = "/workspace/ys_data/evaluation_hard/eval_data"
+    # evaluation_dir = "/workspace/ys_data/evaluation_hard/eval_data"
+    evaluation_dir = "/workspace/ys_data/evaluation_multiple_human_v2/eval_data"
     decord.bridge.set_bridge("torch")
 
     for subdir_idx, subdir in tqdm(enumerate(sorted(os.listdir(evaluation_dir)))):
@@ -45,7 +46,7 @@ if __name__ == '__main__':
         # mp4_path = os.path.join(evaluation_dir, subdir, 'GT.mp4')
         mp4_path = os.path.join(evaluation_dir, subdir, 'GT.mp4')
         # out_path_aligned = os.path.join(evaluation_dir, subdir, 'smpl_hybrid_aligned.mp4')
-        out_path_ori = os.path.join(evaluation_dir, subdir, 'smpl_hybrid.mp4')
+        out_path_ori = os.path.join(evaluation_dir, subdir, 'hybrid_nlf2d.mp4')
         meta_cache_dir = os.path.join(evaluation_dir, subdir, 'meta')
         poses_cache_path = os.path.join(meta_cache_dir, 'keypoints.pt')
         det_cache_path = os.path.join(meta_cache_dir, 'bboxes.pt')
@@ -72,7 +73,8 @@ if __name__ == '__main__':
             detector_return_list.append(detector_result)
         poses, _, _ = zip(*detector_return_list) # 这里存的是整个视频的poses
         
-        frames_np_rgba = render_nlf_as_images(nlf_results, poses=None, reshape_pool=None, )
+        frames_np_rgba = preview_nlf_2d_ori(nlf_results)
+
         canvas_2d = draw_pose_to_canvas_np(poses, pool=None, H=height, W=width, reshape_scale=0, show_feet_flag=False, show_body_flag=False, show_cheek_flag=True, dw_hand=True)
         for i in range(len(frames_np_rgba)):
             frame_img = frames_np_rgba[i]

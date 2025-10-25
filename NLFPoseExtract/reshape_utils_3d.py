@@ -19,10 +19,6 @@ class reshapePool3d:
         self.calf_alpha = 0
         self.face_alpha = random.choices([-0.4, -0.2, 0, 0.2, 0.4], weights=[0.2, 0.15, 0.3, 0.15, 0.2], k=1)[0]
 
-        self.offset_3d_x = random.uniform(-150, 150)
-        self.offset_3d_y = random.uniform(-150, 150)
-        self.offset_3d_z = random.uniform(-250, 50)
-
 
         self.body_reshape_methods = [
             self.reshape_body,
@@ -37,18 +33,15 @@ class reshapePool3d:
 
         self.body_offset_selected_methods = []
         
-        options = ["normal_human", "baby", "long_arm", "long_leg", "random_long_arm_long_leg", "small_body"]
+        options = ["normal_human", "dwarf", "slender", "elf", "random_long_arm_long_leg", "king-kong"]
         if self.reshape_type == "low":
-            weights = [0.75, 0,   0,   0.1, 0.1, 0.05]
+            weights = [0.8, 0,   0,   0.1, 0.1, 0]
             self.body_offset_selected_methods = []
         if self.reshape_type == "normal":
             weights = [0.4, 0.1, 0.1, 0.1, 0.2, 0.1]
-            # self.body_offset_selected_methods = [self.offset_3d_all] if random.random() < 0.3 else []
         elif self.reshape_type == "high":
-            weights = [0.35, 0.175, 0.1, 0.1, 0.15, 0.125]
-            # self.body_offset_selected_methods = [self.offset_3d_all] if random.random() < 0.4 else []
+            weights = [0.3, 0.2, 0.1, 0.1, 0.2, 0.1]
         choice = random.choices(options, weights=weights, k=1)[0]
-        print(f"augmentation: using body_type: {choice}")
         self.aug_init(choice)
 
 
@@ -139,48 +132,64 @@ class reshapePool3d:
 
 
     def aug_init(self, body_type):
+        print(f"augmentation: using body_type: {body_type}")
+        self.shoulder_alpha = 0
+        self.upper_arm_alpha = 0
+        self.forearm_alpha = 0
+        self.body_alpha = 0
+        self.thigh_alpha = 0
+        self.calf_alpha = 0
         if body_type == "normal_human":
             self.body_reshape_selected_methods = []
-        elif body_type == "baby":   # body不动
-            self.upper_arm_alpha = -0.4
-            self.forearm_alpha = -0.4
+        elif body_type == "dwarf":   # body不动
+            self.upper_arm_alpha = random.uniform(-0.3, -0.2)
+            self.forearm_alpha = self.upper_arm_alpha
             self.shoulder_alpha = -0.2
-            self.body_alpha = -0.2
-            self.thigh_alpha = -0.4
-            self.calf_alpha = -0.2
-            self.body_reshape_selected_methods = [self.reshape_body, self.reshape_shoulder, self.reshape_arm, self.reshape_leg]
-        elif body_type == "long_arm":
-            self.upper_arm_alpha = 0.4
+            self.thigh_alpha = random.uniform(-0.3, -0.2)
+            self.calf_alpha = self.thigh_alpha
+            self.body_reshape_selected_methods = [self.reshape_shoulder, self.reshape_arm, self.reshape_leg]
+            self.face_alpha = 0.2
+        elif body_type == "slender":
+            self.upper_arm_alpha = 0.3
             self.forearm_alpha = 0.2
             self.shoulder_alpha = 0.2
-            self.body_alpha = random.uniform(-0.5, 0)
-            self.thigh_alpha = self.body_alpha / 2.5
-            self.calf_alpha = self.body_alpha / 2.5
-            self.body_reshape_selected_methods = [self.reshape_body, self.reshape_arm, self.reshape_leg]
-        elif body_type == "long_leg":
+            self.thigh_alpha = 0.1
+            self.calf_alpha = 0.1
+            self.body_reshape_selected_methods = [self.reshape_shoulder, self.reshape_arm, self.reshape_leg]
+            self.face_alpha = -0.2
+        elif body_type == "elf":
             self.body_alpha = random.uniform(-0.2, 0.2)
-            self.thigh_alpha = 0.4
-            self.calf_alpha = 0.4
-            self.shoulder_alpha = -0.2
-            self.upper_arm_alpha = -0.2
-            self.forearm_alpha = -0.2
+            self.shoulder_alpha = 0.1
+            self.upper_arm_alpha = 0.1
+            self.forearm_alpha = 0.1
+            self.thigh_alpha = 0.25
+            self.calf_alpha = 0.25
             self.body_reshape_selected_methods = [self.reshape_body, self.reshape_shoulder, self.reshape_arm, self.reshape_leg]
-        elif body_type == "small_body":
-            self.body_alpha = -0.3
-            self.thigh_alpha = -0.3
-            self.calf_alpha = -0.3
-            self.body_reshape_selected_methods = [self.reshape_body, self.reshape_leg]
+            self.face_alpha = 0
+        elif body_type == "king-kong":
+            self.body_alpha = 0.1
+            self.thigh_alpha = -0.25
+            self.calf_alpha = -0.25
+            self.upper_arm_alpha = 0.2
+            self.forearm_alpha = 0.2
+            self.shoulder_alpha = 0.3
+            self.body_reshape_selected_methods = [self.reshape_body, self.reshape_shoulder, self.reshape_arm, self.reshape_leg]
+            self.face_alpha = 0
         elif body_type == "random_long_arm_long_leg":
-            self.upper_arm_alpha = random.uniform(-0.2, 0.6)
-            self.forearm_alpha = random.uniform(-0.2, 0.6)
-            self.thigh_alpha = random.uniform(-0.2, 0.6)
-            self.calf_alpha = random.uniform(-0.2, 0.6)
-            self.body_alpha = random.uniform(-0.6, 0.3)
+            self.upper_arm_alpha = random.uniform(-0.2, 0.2)
+            self.forearm_alpha = random.uniform(-0.2, 0.2)
+            self.thigh_alpha = random.uniform(-0.2, 0.2)
+            self.calf_alpha = random.uniform(-0.2, 0.2)
+            self.body_alpha = random.uniform(-0.1, 0.1)
             self.body_reshape_selected_methods = [self.reshape_body, self.reshape_arm, self.reshape_leg]
-
-
-    def set_offset_3d_z(self, min_z):
-        self.offset_3d_z = random.uniform(-min_z / 12, min_z / 12)
+        # elif body_type == "test_case":
+        #     self.upper_arm_alpha = -0.4
+        #     self.forearm_alpha = -0.4
+        #     self.shoulder_alpha = -0.3
+        #     self.thigh_alpha = 0.2
+        #     self.calf_alpha = 0.2
+        #     self.body_alpha = 0.1
+        #     self.body_reshape_selected_methods = [self.reshape_body, self.reshape_shoulder, self.reshape_arm, self.reshape_leg]
 
 
 

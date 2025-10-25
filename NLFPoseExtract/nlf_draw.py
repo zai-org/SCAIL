@@ -83,3 +83,53 @@ def preview_nlf_2d(data):
         np_images.append(final_canvas)
 
     return np_images
+
+
+
+def preview_nlf_2d_ori(nlf_results):
+    """ return a list of images """
+    height, width = nlf_results[0]['video_height'], nlf_results[0]['video_width']
+    offset = [height, width, 0]
+    np_images = []
+    for single_result in nlf_results:
+        image_result = single_result['nlfpose']
+        final_canvas = np.zeros(shape=(offset[0], offset[1], 3), dtype=np.uint8)
+        for joints3d in image_result:  # 每个人的pose
+            canvas = np.zeros(shape=(offset[0], offset[1], 3), dtype=np.uint8)
+            joints3d = joints3d.cpu().numpy()
+            joints2d = p3d_to_p2d(joints3d, offset[0], offset[1])
+            joints2d = joints2d[0][:, :2] 
+            joints2d[:, 0] = joints2d[:, 0] / offset[1]  # x坐标归一化
+            joints2d[:, 1] = joints2d[:, 1] / offset[0]  # y坐标归一化
+            joints2d = process_data_to_COCO_format(joints2d)
+            subset = np.expand_dims(np.concatenate([np.arange(14), [-1, -1, -1, -1]]), axis=0)
+            canvas = draw_bodypose(canvas, joints2d, subset)
+            final_canvas = final_canvas + canvas
+        np_images.append(final_canvas)
+
+    return np_images
+
+
+def preview_nlf_2d_new(nlf_results):
+    """ return a list of images """
+    height, width = nlf_results[0]['video_height'], nlf_results[0]['video_width']
+    offset = [height, width, 0]
+    np_images = []
+    for bbox_result in nlf_results:
+        final_canvas = np.zeros(shape=(offset[0], offset[1], 3), dtype=np.uint8)
+        bbox_result = bbox_result['nlfpose']
+        for image_result in bbox_result:
+            for joints3d in image_result:  # 每个人的pose
+                canvas = np.zeros(shape=(offset[0], offset[1], 3), dtype=np.uint8)
+                joints3d = joints3d.cpu().numpy()
+                joints2d = p3d_to_p2d(joints3d, offset[0], offset[1])
+                joints2d = joints2d[0][:, :2] 
+                joints2d[:, 0] = joints2d[:, 0] / offset[1]  # x坐标归一化
+                joints2d[:, 1] = joints2d[:, 1] / offset[0]  # y坐标归一化
+                joints2d = process_data_to_COCO_format(joints2d)
+                subset = np.expand_dims(np.concatenate([np.arange(14), [-1, -1, -1, -1]]), axis=0)
+                canvas = draw_bodypose(canvas, joints2d, subset)
+                final_canvas = final_canvas + canvas
+        np_images.append(final_canvas)
+
+    return np_images

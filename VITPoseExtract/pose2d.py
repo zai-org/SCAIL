@@ -443,3 +443,88 @@ class Pose2d:
             final_metas[i] = metas
         
         return final_metas
+
+
+
+class Pose2d_format:
+    def __init__(self, checkpoint, detector_checkpoint=None, device='cuda', **kwargs):
+
+        if detector_checkpoint is not None:
+            self.detector = Yolo(detector_checkpoint, device)
+        else:
+            self.detector = None
+
+        self.model = ViTPose(checkpoint, device)
+        self.device = device
+
+    def load_images(self, inputs):
+        """
+        Load images from various input types.
+        
+        Args:
+            inputs (Union[str, np.ndarray, List[np.ndarray]]): Input can be file path, 
+                     single image array, or list of image arrays
+            
+        Returns:
+            List[np.ndarray]: List of RGB image arrays
+            
+        Raises:
+            ValueError: If file format is unsupported or image cannot be read
+        """
+        if isinstance(inputs, str):
+            if inputs.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+                cap = cv2.VideoCapture(inputs)
+                frames = []
+                while True:
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                cap.release()
+                images = frames
+            elif inputs.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp')):
+                img = cv2.cvtColor(cv2.imread(inputs), cv2.COLOR_BGR2RGB)
+                if img is None:
+                    raise ValueError(f"Cannot read image: {inputs}")
+                images = [img]
+            else:
+                raise ValueError(f"Unsupported file format: {inputs}")
+                
+        elif isinstance(inputs, np.ndarray):
+            images = [cv2.cvtColor(image, cv2.COLOR_BGR2RGB) for image in inputs]
+        elif isinstance(inputs, list):
+            images = [cv2.cvtColor(image, cv2.COLOR_BGR2RGB) for image in inputs]
+        return images
+
+    def __call__(
+        self, 
+        inputs: Union[str, np.ndarray, List[np.ndarray]],
+        return_image: bool = False,
+        bboxes=None,
+        **kwargs
+    ):
+        """
+        Process input and estimate 2D keypoints.
+        
+        Args:
+            inputs (Union[str, np.ndarray, List[np.ndarray]]): Input can be file path,
+                     single image array, or list of image arrays
+            **kwargs: Additional arguments for processing
+            
+        Returns:
+            np.ndarray: Array of detected 2D keypoints for all input images
+        """
+        images = self.load_images(inputs)
+        H, W = images[0].shape[:2]
+        bbox_list = [bboxes]
+        final_metas = [[] for _ in range(len(images))]
+        for i, (_image, _bbox_list) in enumerate(zip(images, bbox_list)):
+            kp2ds = []
+            for _bbox in _bbox_list:
+                img, center, scale = self.model.preprocess(_image, _bbox)
+                kp2ds.append(self.model(img[None], center[None], scale[None]))
+            kp2ds = np.concatenate(kp2ds, 0)
+            metas = load_pose_metas_from_kp2ds_seq(kp2ds, width=W, height=H)
+            final_metas[i] = metas
+        
+        return final_metas

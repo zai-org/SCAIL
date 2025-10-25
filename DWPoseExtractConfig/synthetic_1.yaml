@@ -3,6 +3,8 @@ video_root: "/workspace/ywh_data/synthetic_data/synthetic_bilibili_dance_shuping
 wds_root: "/workspace/ywh_data/synthetic_data/wds_synthetic_bilibili_dance_shuping_0929-1280_720"
 
 filter_args:
+  no_interval: True
+  total_uncheck: True
   use_filter: False
   save_mp4: True
   use_fail_prompt: False

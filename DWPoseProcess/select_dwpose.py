@@ -33,17 +33,16 @@ import glob
 import pickle
 import copy
 from NLFPoseExtract.nlf_draw import intrinsic_matrix_from_field_of_view, process_data_to_COCO_format, p3d_to_p2d
-from NLFPoseExtract.smpl_joint_xyz import compute_motion_speed, compute_motion_range
+import traceback
+from NLFPoseExtract.smpl_joint_xyz import compute_motion_speed
 
-def collect_nlf(data):
+def collect_nlf_for_select(data):   # 如果没检测到，不考虑非0的
     uncollected_smpl_poses = [item['nlfpose'] for item in data]
     smpl_poses = [[] for _ in range(len(uncollected_smpl_poses))]
     for frame_idx in range(len(uncollected_smpl_poses)):
         for person_idx in range(len(uncollected_smpl_poses[frame_idx])):  # 每个人（每个bbox）只给出一个pose
             if len(uncollected_smpl_poses[frame_idx][person_idx]) > 0:    # 有返回的骨骼
                 smpl_poses[frame_idx].append(uncollected_smpl_poses[frame_idx][person_idx][0].cpu())
-            else:
-                smpl_poses[frame_idx].append(torch.zeros((24, 3), dtype=torch.float32).cpu())  # 没有检测到人，就放一个全0的
     return smpl_poses
 
 def project_dwpose_to_3d(dwpose_keypoint, original_threed_keypoint, focal, princpt, H, W):
@@ -87,99 +86,108 @@ def check_nlf_result(dwpose_data, video_height, video_width, smpl_extracted_data
                 nozero_t.append(t)
     return nozero_t
 
-def check_2d_3d_match(dwpose_data, video_height, video_width, smpl_extracted_data, multi_person):
-    match_t = []
-    nozero_t = []
+# def check_2d_3d_match(dwpose_data, video_height, video_width, smpl_extracted_data, multi_person):
+#     match_t = []
+#     nozero_t = []
 
-    limb_seq = [
-        [1, 2],    # 0 Neck -> R. Shoulder
-        [1, 5],    # 1 Neck -> L. Shoulder
-        [2, 3],    # 2 R. Shoulder -> R. Elbow
-        [3, 4],    # 3 R. Elbow -> R. Wrist
-        [5, 6],    # 4 L. Shoulder -> L. Elbow
-        [6, 7],    # 5 L. Elbow -> L. Wrist
-        [1, 8],    # 6 Neck -> R. Hip
-        [8, 9],    # 7 R. Hip -> R. Knee
-        [9, 10],   # 8 R. Knee -> R. Ankle
-        [1, 11],   # 9 Neck -> L. Hip
-        [11, 12],  # 10 L. Hip -> L. Knee
-        [12, 13],  # 11 L. Knee -> L. Ankle
-        [1, 0],    # 12 Neck -> Nose
-        # [0, 14],   # 13 Nose -> R. Eye
-        # [14, 16],  # 14 R. Eye -> R. Ear
-        # [0, 15],   # 15 Nose -> L. Eye
-        # [15, 17],  # 16 L. Eye -> L. Ear
-    ]
+#     limb_seq = [
+#         [1, 2],    # 0 Neck -> R. Shoulder
+#         [1, 5],    # 1 Neck -> L. Shoulder
+#         [2, 3],    # 2 R. Shoulder -> R. Elbow
+#         [3, 4],    # 3 R. Elbow -> R. Wrist
+#         [5, 6],    # 4 L. Shoulder -> L. Elbow
+#         [6, 7],    # 5 L. Elbow -> L. Wrist
+#         [1, 8],    # 6 Neck -> R. Hip
+#         [8, 9],    # 7 R. Hip -> R. Knee
+#         [9, 10],   # 8 R. Knee -> R. Ankle
+#         [1, 11],   # 9 Neck -> L. Hip
+#         [11, 12],  # 10 L. Hip -> L. Knee
+#         [12, 13],  # 11 L. Knee -> L. Ankle
+#         [1, 0],    # 12 Neck -> Nose
+#         # [0, 14],   # 13 Nose -> R. Eye
+#         # [14, 16],  # 14 R. Eye -> R. Ear
+#         # [0, 15],   # 15 Nose -> L. Eye
+#         # [15, 17],  # 16 L. Eye -> L. Ear
+#     ]
 
-    for t in range(len(dwpose_data)):
-        dwpose_kpts = copy.deepcopy(dwpose_data[t]['bodies']['candidate'])
-        smpl_kpts = smpl_extracted_data[t]
-        # 目前只支持单人
-        if not multi_person:
-            if dwpose_kpts.shape[0] == 0 or smpl_kpts.shape[0] == 0:
-                continue
-            else:
-                nozero_t.append(t)
-                dwpose_2d_joints = dwpose_kpts[0]
-                smpl_3d_joints = smpl_kpts[0].cpu().numpy()   # torch->numpy
-                camera_matrix = intrinsic_matrix_from_field_of_view((video_height, video_width))
-                focal = camera_matrix[0, 0], camera_matrix[1, 1]
-                princpt = camera_matrix[0, 2], camera_matrix[1, 2]
-                smpl_3d_joints = process_data_to_COCO_format(smpl_3d_joints)[:14]   # 24->18点->14点
-                smpl_2d_joints = p3d_to_p2d(smpl_3d_joints, video_height, video_width)[0]
-                def out_of_screen(joint):
-                    if joint[0] < 0 or joint[0] > video_width or joint[1] < 0 or joint[1] > video_height:
-                        return True
-                    else:
-                        return False
-                dwpose_3d_joints = np.zeros((18, 3), dtype=smpl_3d_joints.dtype)
-                for j in range(14):  # 只取关键的几个点
-                    if dwpose_2d_joints[j][0] == -1 or dwpose_2d_joints[j][1] == -1:
-                        continue
-                    else:
-                        dwpose_3d_joints[j] = project_dwpose_to_3d(dwpose_2d_joints[j], smpl_3d_joints[j], focal, princpt, video_height, video_width)
-                match_flag = True
-                for line_idx in limb_seq:
-                    start, end = line_idx[0], line_idx[1]
-                    if np.sum(dwpose_3d_joints[start]) == 0 or np.sum(dwpose_3d_joints[end]) == 0 or out_of_screen(smpl_2d_joints[start]) or out_of_screen(smpl_2d_joints[end]):  # 没有识别出的点，或在屏幕外的点
-                        continue
-                    else:
-                        vec_dwpose = np.array(dwpose_3d_joints[end]) - np.array(dwpose_3d_joints[start])
-                        vec_smpl = np.array(smpl_3d_joints[end]) - np.array(smpl_3d_joints[start])
-                        vec_dwpose_len = np.linalg.norm(vec_dwpose)
-                        vec_smpl_len = np.linalg.norm(vec_smpl)
-                        if vec_dwpose_len > vec_smpl_len * 2.2 or vec_dwpose_len < vec_smpl_len * 0.4:
-                            match_flag = False
-                            break
-                if match_flag:
-                    match_t.append(t)
-        else:
-            if dwpose_kpts.shape[0] == 0 or smpl_kpts.shape[0] == 0:
-                continue
-            elif dwpose_kpts.shape[0] != smpl_kpts.shape[0]:
-                continue
-            else:
-                nozero_t.append(t)
-                match_t.append(t)
-    return match_t, nozero_t
+#     for t in range(len(dwpose_data)):
+#         dwpose_kpts = copy.deepcopy(dwpose_data[t]['bodies']['candidate'])
+#         smpl_kpts = smpl_extracted_data[t]
+#         # 目前只支持单人
+#         if not multi_person:
+#             if dwpose_kpts.shape[0] == 0 or smpl_kpts.shape[0] == 0:
+#                 continue
+#             else:
+#                 nozero_t.append(t)
+#                 dwpose_2d_joints = dwpose_kpts[0]
+#                 smpl_3d_joints = smpl_kpts[0].cpu().numpy()   # torch->numpy
+#                 camera_matrix = intrinsic_matrix_from_field_of_view((video_height, video_width))
+#                 focal = camera_matrix[0, 0], camera_matrix[1, 1]
+#                 princpt = camera_matrix[0, 2], camera_matrix[1, 2]
+#                 smpl_3d_joints = process_data_to_COCO_format(smpl_3d_joints)[:14]   # 24->18点->14点
+#                 smpl_2d_joints = p3d_to_p2d(smpl_3d_joints, video_height, video_width)[0]
+#                 def out_of_screen(joint):
+#                     if joint[0] < 0 or joint[0] > video_width or joint[1] < 0 or joint[1] > video_height:
+#                         return True
+#                     else:
+#                         return False
+#                 dwpose_3d_joints = np.zeros((18, 3), dtype=smpl_3d_joints.dtype)
+#                 for j in range(14):  # 只取关键的几个点
+#                     if dwpose_2d_joints[j][0] == -1 or dwpose_2d_joints[j][1] == -1:
+#                         continue
+#                     else:
+#                         dwpose_3d_joints[j] = project_dwpose_to_3d(dwpose_2d_joints[j], smpl_3d_joints[j], focal, princpt, video_height, video_width)
+#                 match_flag = True
+#                 for line_idx in limb_seq:
+#                     start, end = line_idx[0], line_idx[1]
+#                     if np.sum(dwpose_3d_joints[start]) == 0 or np.sum(dwpose_3d_joints[end]) == 0 or out_of_screen(smpl_2d_joints[start]) or out_of_screen(smpl_2d_joints[end]):  # 没有识别出的点，或在屏幕外的点
+#                         continue
+#                     else:
+#                         vec_dwpose = np.array(dwpose_3d_joints[end]) - np.array(dwpose_3d_joints[start])
+#                         vec_smpl = np.array(smpl_3d_joints[end]) - np.array(smpl_3d_joints[start])
+#                         vec_dwpose_len = np.linalg.norm(vec_dwpose)
+#                         vec_smpl_len = np.linalg.norm(vec_smpl)
+#                         if vec_dwpose_len > vec_smpl_len * 2.2 or vec_dwpose_len < vec_smpl_len * 0.4:
+#                             match_flag = False
+#                             break
+#                 if match_flag:
+#                     match_t.append(t)
+#         else:
+#             if dwpose_kpts.shape[0] == 0 or smpl_kpts.shape[0] == 0:
+#                 continue
+#             elif dwpose_kpts.shape[0] != smpl_kpts.shape[0]:
+#                 continue
+#             else:
+#                 nozero_t.append(t)
+#                 match_t.append(t)
+#     return match_t, nozero_t
 
-def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width, fps, multi_person, use_filter=True): 
+def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width, fps, multi_person, use_filter=True, no_interval=False, total_uncheck=False, select_speed=0): 
     try:
         ori_poses = torch.load(keypoint_path, weights_only=False)
         ori_bboxes = torch.load(bbox_path, weights_only=False)
+        if not os.path.exists(smpl_path):
+            return None
         ori_smpl = pickle.load(open(smpl_path, 'rb'))
-        collected_nlf = collect_nlf(ori_smpl)
-        smpl_ori_data = [torch.stack(collected_nlf[i]) for i in range(len(collected_nlf))]
+        collected_nlf = collect_nlf_for_select(ori_smpl)
+        smpl_ori_data = [
+            torch.stack(collected_nlf[i]) if len(collected_nlf[i]) > 0 
+            else torch.empty((0, 24, 3)) 
+            for i in range(len(collected_nlf))
+        ]
         target_fps = 16
 
         H, W = height, width
         max_slide_attempts = 80
         # 定义可选的 motion_part_len 值
         possible_lengths = [65, 81, 162]
-        if use_filter:
-            pick_indices = np.arange(2, len(ori_poses)-2, fps / target_fps).astype(int)  # 比如orilist 0-10， downsample成 newlist [0 2 4 6 8], 那么newlist[1] 对应原来 orilist[2]，直接用即可 需要去掉前后两帧
+        if total_uncheck:
+            return list(range(len(ori_poses))), [0], -1   # 全部通过 不筛选
+        if no_interval:
+            pick_indices = np.arange(0, len(ori_poses), 1).astype(int)   # 不去掉首尾帧，适用于生成的，或者无需切的数据            
         else:
-            pick_indices = np.arange(0, len(ori_poses), 1).astype(int)   # 不去掉首尾帧，并且固定fps=16（因为是生成的，尽量保持81帧数都能取到）
+            pick_indices = np.arange(2, len(ori_poses)-2, fps / target_fps).astype(int)  # 比如orilist 0-10， downsample成 newlist [0 2 4 6 8], 那么newlist[1] 对应原来 orilist[2]，直接用即可 需要去掉前后两帧
+            
 
         poses = [ori_poses[index] for index in pick_indices]
         bboxes = [ori_bboxes[index] for index in pick_indices]
@@ -188,9 +196,10 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
         valid_lengths.sort(reverse=True)
         final_motion_indices = None
         nozero_t_result = check_nlf_result(poses.copy(), H, W, smpl_extracted_data, multi_person)   # 取了Pick_indices之后的t
+        motion_speed = select_speed
 
         for motion_part_len in valid_lengths:
-            start_index = 8
+            start_index = 4
             for _ in range(max_slide_attempts):
                 end = int(start_index + motion_part_len)
                 if end > len(poses):
@@ -202,7 +211,7 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
                 motion_part_indices = np.arange(start_index, end, 1).astype(int)
                 ref_part_indices = np.arange(max(start_index-15, 0), start_index + 1, 1).astype(int)  # 对Synthetic视频，就是首帧
                 motion_part_indices_in_nozero_t = [index for index in motion_part_indices if index in nozero_t_result]
-                if len(motion_part_indices_in_nozero_t) < 0.6 * motion_part_len:   # 正确的太少了
+                if len(motion_part_indices_in_nozero_t) < 0.7 * motion_part_len:   # 正确的太少了
                     start_index += random.randint(3, 4)
                     continue
 
@@ -213,25 +222,33 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
 
                 # 下面这四个筛选逻辑，除了bbox本身的，其他只对第0个bbox里的骨骼进行筛选
                 motion_part_bbox_check_result = check_from_keypoints_bbox(motion_part_poses, motion_part_bboxes, IoU_thresthold=0.3, reference_width=W, reference_height=H, multi_person=multi_person)
+                if select_speed > -1:
+                    camera = intrinsic_matrix_from_field_of_view([H, W])
+                    V = [smpl_extracted_data[index] for index in motion_part_indices]
+                    motion_speed = compute_motion_speed(V, int(H), int(W), camera)
+                    # print(f"debug: motion speed: {motion_speed}")
+                    motion_part_bbox_check_result = motion_part_bbox_check_result and motion_speed > select_speed
                 ref_part_check_indices = get_valid_indice_from_keypoints(ref_part_poses, ref_part_indices)
                 
-                if len(ref_part_check_indices) > 0 and motion_part_bbox_check_result:    # 这里只要满足正脸条件就可以，其它都留着
+                if motion_part_bbox_check_result:
                     if multi_person:
-                        final_ref_image_indice = select_ref_from_keypoints_bbox_multi(ref_part_indices, ref_part_bboxes, motion_part_bboxes)
-                        if final_ref_image_indice is None:
+                        if len(ref_part_check_indices) > 0:
+                            final_ref_image_indice = select_ref_from_keypoints_bbox_multi(ref_part_indices, ref_part_bboxes, motion_part_bboxes)
+                            if final_ref_image_indice is None:
+                                start_index += random.randint(3, 4)
+                                continue
+                            final_ref_image_indices = [final_ref_image_indice]
+                        else:
                             start_index += random.randint(3, 4)
                             continue
-                        final_ref_image_indices = [final_ref_image_indice]
                     else:
-                        final_ref_image_indices = ref_part_check_indices
+                        if len(ref_part_check_indices) > 0:
+                            final_ref_image_indices = ref_part_check_indices
+                        else:
+                            final_ref_image_indices = motion_part_indices.tolist()[:1]  # 没有合适的，就用动作片段的第一帧
                     # 转换索引
-                    motion_speed = compute_motion_speed([smpl_ori_data[i] for i in motion_part_indices.tolist()])
-                    if motion_speed is None or motion_speed < 16:
-                        start_index += random.randint(3, 4)
-                        continue
-                    else:
-                        final_motion_indices = motion_part_indices.tolist()
-                        break   # 退出循环，返回
+                    final_motion_indices = motion_part_indices.tolist()
+                    break   # 退出循环，返回
                 else:
                     start_index += random.randint(3, 4)
                     continue
@@ -242,8 +259,10 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
                 final_motion_indices = [int(pick_indices[idx]) for idx in final_motion_indices]
                 final_ref_image_indices = [int(pick_indices[idx]) for idx in final_ref_image_indices]
                 return final_motion_indices, final_ref_image_indices, motion_speed
+            
     except Exception as e:
-        print(f"Error processing video {keypoint_path}: {e}, continue")
+        print(f"Error filtering {keypoint_path}: {e}, continue")
+        traceback.print_exc()
     return None
 
 
@@ -337,9 +356,12 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
                     continue
 
                 if filter_args is None or filter_args.get('use_filter', False) == True:
-                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, out_path_smpl, height, width, fps, multi_person, use_filter=True)              
+                    select_speed = filter_args.get('select_speed', 0)
+                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, out_path_smpl, height, width, fps, multi_person, use_filter=True, select_speed=select_speed)
                 elif filter_args.get('use_filter', False) == False:
-                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, out_path_smpl, height, width, fps, multi_person, use_filter=False)
+                    total_uncheck = filter_args.get('total_uncheck', False)
+                    no_interval = filter_args.get('no_interval', False)
+                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, out_path_smpl, height, width, fps, multi_person, use_filter=False, no_interval=no_interval, total_uncheck=total_uncheck, select_speed=-1)
                 if process_result is None:
                     continue
 
@@ -376,6 +398,7 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
             
             except Exception as e:
                 print(f"Error processing video {key}: {e}")
+                traceback.print_exc()
                 continue
 
     # Write remaining samples if any
@@ -413,7 +436,7 @@ if __name__ == "__main__":
                         help='Path to YAML configuration file')
     parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_pack_wds_0923_step1',
                         help='Input root')
-    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_default',
+    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_1024_step3',
                         help='Output root')
     parser.add_argument('--max_processes', type=int, default=8,
                         help='Max processes')

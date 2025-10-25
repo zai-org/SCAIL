@@ -31,7 +31,9 @@ import glob
 import pickle
 import copy
 from NLFPoseExtract.nlf_render import render_nlf_as_images
+from NLFPoseExtract.nlf_draw import preview_nlf_2d_new
 from NLFPoseExtract.reshape_utils_3d import reshapePool3d
+from pose_draw.draw_pose_main import draw_pose_to_canvas_np
 import traceback
 import taichi as ti
 try:
@@ -62,6 +64,20 @@ def process_fn_video(src, meta_dict=None):
 
         yield {'__key__': r['__key__'], 'motion_indices': motion_indices}
 
+
+def nlf_2d_drawing(nlf_results, poses):
+    height = nlf_results[0]['video_height']
+    width = nlf_results[0]['video_width']
+    frames_np_rgba = preview_nlf_2d_new(nlf_results)
+    canvas_2d = draw_pose_to_canvas_np(poses, pool=None, H=height, W=width, reshape_scale=0, show_feet_flag=False, show_body_flag=False, show_cheek_flag=True, dw_hand=True)
+    for i in range(len(frames_np_rgba)):
+        frame_img = frames_np_rgba[i]
+        canvas_img = canvas_2d[i]
+        mask = canvas_img != 0
+        frame_img[:, :, :3][mask] = canvas_img[mask]
+        frames_np_rgba[i] = frame_img
+    return frames_np_rgba
+
 def render_to_smpl_path(wds_path, save_dir_smpl, save_dir_smpl_render, save_dir_keypoints, reshape_type, save_dir_caption, save_dir_caption_multi):
     meta_dict = {}
     meta_file = wds_path.replace('.tar', '.meta.jsonl')
@@ -72,6 +88,8 @@ def render_to_smpl_path(wds_path, save_dir_smpl, save_dir_smpl_render, save_dir_
     ti.init(arch=ti.cuda, offline_cache_file_path=f'{tmp_dir}/{tarname}')
     os.makedirs(save_dir_smpl_render, exist_ok=True)
     os.makedirs(save_dir_smpl_render.replace('smpl_render', 'smpl_render_aug'), exist_ok=True)
+    os.makedirs(save_dir_smpl_render.replace('smpl_render', 'smpl_render_noface'), exist_ok=True)
+    os.makedirs(save_dir_smpl_render.replace('smpl_render', 'smpl_2d'), exist_ok=True)
 
     for meta_line in meta_lines:
         meta_line = meta_line.strip()
@@ -104,17 +122,25 @@ def render_to_smpl_path(wds_path, save_dir_smpl, save_dir_smpl_render, save_dir_
         if multi_person:
             reshape_type = "low"
         out_path_smpl_render = os.path.join(save_dir_smpl_render, key + '.mp4')
+        out_path_smpl_2d = os.path.join(save_dir_smpl_render.replace('smpl_render', 'smpl_2d'), key + '.mp4')
         out_path_smpl_render_aug = os.path.join(save_dir_smpl_render.replace('smpl_render', 'smpl_render_aug'), key + '.mp4')
+        out_path_smpl_render_noface = os.path.join(save_dir_smpl_render.replace('smpl_render', 'smpl_render_noface'), key + '.mp4')
+
         height, width = smpl_data[0]["video_height"], smpl_data[0]["video_width"]
         reshape_pool_3d = reshapePool3d(reshape_type=reshape_type, height=height, width=width)
+        reshape_pool_3d_no_face = reshapePool3d(reshape_type=reshape_type, height=height, width=width) if random.random() < 0.6 else None
 
         # 完全用DWPose的手/脸
         smpl_data_in_motion = [smpl_data[i] for i in motion_indices]
         poses_in_motion = [poses[i] for i in motion_indices]
-        smpl_render_data = render_nlf_as_images(copy.deepcopy(smpl_data_in_motion), copy.deepcopy(poses_in_motion), reshape_pool=None)
-        smpl_render_data_aug = render_nlf_as_images(copy.deepcopy(smpl_data_in_motion), copy.deepcopy(poses_in_motion), reshape_pool=reshape_pool_3d)
+        smpl_2d_data = nlf_2d_drawing(copy.deepcopy(smpl_data_in_motion), copy.deepcopy(poses_in_motion))
+        smpl_render_data = render_nlf_as_images(copy.deepcopy(smpl_data_in_motion), copy.deepcopy(poses_in_motion), reshape_pool=None, aug_2d=False, aug_cam=False)
+        smpl_render_data_aug = render_nlf_as_images(copy.deepcopy(smpl_data_in_motion), copy.deepcopy(poses_in_motion), reshape_pool=reshape_pool_3d, aug_2d=True, aug_cam=True)
+        smpl_render_aug_no_face = render_nlf_as_images(copy.deepcopy(smpl_data_in_motion), copy.deepcopy(poses_in_motion), reshape_pool=reshape_pool_3d_no_face, draw_2d=False, aug_2d=True, aug_cam=False)
+        mpy.ImageSequenceClip(smpl_2d_data, fps=16).write_videofile(out_path_smpl_2d)
         mpy.ImageSequenceClip(smpl_render_data, fps=16).write_videofile(out_path_smpl_render)
         mpy.ImageSequenceClip(smpl_render_data_aug, fps=16).write_videofile(out_path_smpl_render_aug)
+        mpy.ImageSequenceClip(smpl_render_aug_no_face, fps=16).write_videofile(out_path_smpl_render_noface)
 
 def process_tar_chunk(chunk, save_dir_smpl, save_dir_smpl_render, save_dir_keypoints, reshape_type, save_dir_caption, save_dir_caption_multi):
     for wds_path in chunk:
