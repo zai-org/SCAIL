@@ -79,6 +79,28 @@ def collect_smpl_poses(data):
                 smpl_poses[frame_idx].append(torch.zeros((24, 3), dtype=torch.float32))  # 没有检测到人，就放一个全0的
 
     return smpl_poses
+
+
+
+def collect_smpl_poses_samurai(data):
+    uncollected_smpl_poses = [item['nlfpose'] for item in data]
+    smpl_poses_first = [[] for _ in range(len(uncollected_smpl_poses))]
+    smpl_poses_second = [[] for _ in range(len(uncollected_smpl_poses))]
+
+    for frame_idx in range(len(uncollected_smpl_poses)):
+        for person_idx in range(len(uncollected_smpl_poses[frame_idx])):  # 每个人（每个bbox）只给出一个pose
+            if len(uncollected_smpl_poses[frame_idx][person_idx]) > 0:    # 有返回的骨骼
+                if person_idx == 0:
+                    smpl_poses_first[frame_idx].append(uncollected_smpl_poses[frame_idx][person_idx][0]) 
+                elif person_idx == 1:
+                    smpl_poses_second[frame_idx].append(uncollected_smpl_poses[frame_idx][person_idx][0])
+            else:
+                if person_idx == 0:
+                    smpl_poses_first[frame_idx].append(torch.zeros((24, 3), dtype=torch.float32))  # 没有检测到人，就放一个全0的
+                elif person_idx == 1:
+                    smpl_poses_second[frame_idx].append(torch.zeros((24, 3), dtype=torch.float32))
+
+    return smpl_poses_first, smpl_poses_second
     
 
 
@@ -340,5 +362,151 @@ def render_phmr_as_images(data, height, width):
 
 
     frames_np_rgba = render_whole(cylinder_specs_list, H=height, W=width, fx=focal, fy=focal, cx=princpt[0], cy=princpt[1], radius=0.0215)
+
+    return frames_np_rgba
+
+
+
+
+def render_multi_nlf_as_images(data, poses, reshape_pool=None, intrinsic_matrix=None, draw_2d=True, aug_2d=False, aug_cam=False):
+    """ return a list of images """
+    height, width = data[0]['video_height'], data[0]['video_width']
+    video_length = len(data)
+
+    second_person_base_colors_255_dict = {
+        # Warm Colors for Right Side (R.) - Red, Orange, Yellow
+        "Red": [255, 20, 20],
+        "Orange": [255, 60, 0],
+        "Golden Orange": [255, 110, 0],
+        "Yellow": [255, 200, 0],
+        "Yellow-Green": [160, 255, 40],
+        
+        # Cool Colors for Left Side (L.) - Green, Blue, Purple
+        "Bright Green": [0, 255, 50],
+        "Light Green-Blue": [0, 255, 100],
+        "Aqua": [0, 255, 200],
+        "Cyan": [0, 230, 255],
+        "Sky Blue": [0, 130, 255],
+        "Medium Blue": [0, 70, 255],
+        "Pure Blue": [0, 0, 255],
+        "Purple-Blue": [80, 0, 255],
+        "Medium Purple": [160, 0, 255],
+        
+        # Neutral/Central Colors (e.g., for Neck, Nose, Eyes, Ears)
+        "Grey": [130, 130, 130],
+        "Pink-Magenta": [255, 0, 150],
+        "Dark Pink": [255, 0, 100],
+        "Violet": [120, 0, 255],
+        "Dark Violet": [60, 0, 255],
+    }
+
+    first_person_base_colors_255_dict = {
+        # Warm Colors for Right Side (R.) - Red, Orange, Yellow
+        "Red": [255, 150, 150],
+        "Orange": [255, 180, 140],
+        "Golden Orange": [255, 215, 150],
+        "Yellow": [255, 240, 170],
+        "Yellow-Green": [200, 255, 100],
+        
+        # Cool Colors for Left Side (L.) - Green, Blue, Purple
+        "Bright Green": [100, 255, 100],
+        "Light Green-Blue": [140, 255, 180],
+        "Aqua": [150, 240, 200],
+        "Cyan": [180, 230, 240],
+        "Sky Blue": [160, 200, 255],
+        "Medium Blue": [100, 120, 255],
+        "Pure Blue": [120, 140, 255],
+        "Purple-Blue": [180, 90, 255],
+        "Medium Purple": [190, 120, 255],
+        
+        # Neutral/Central Colors (e.g., for Neck, Nose, Eyes, Ears)
+        "Grey": [210, 210, 210],
+        "Pink-Magenta": [255, 120, 200],
+        "Dark Pink": [255, 150, 180],
+        "Violet": [200, 90, 255],
+        "Dark Violet": [130, 80, 255],
+    }
+
+    base_colors_255_dict_list = [first_person_base_colors_255_dict, second_person_base_colors_255_dict]
+    ordered_colors_255_list = [[
+        base_colors_255_dict["Red"],              # Neck -> R. Shoulder (Red)
+        base_colors_255_dict["Cyan"],             # Neck -> L. Shoulder (Cyan)
+        base_colors_255_dict["Orange"],           # R. Shoulder -> R. Elbow (Orange)
+        base_colors_255_dict["Golden Orange"],    # R. Elbow -> R. Wrist (Golden Orange)
+        base_colors_255_dict["Sky Blue"],         # L. Shoulder -> L. Elbow (Sky Blue)
+        base_colors_255_dict["Medium Blue"],      # L. Elbow -> L. Wrist (Medium Blue)
+        base_colors_255_dict["Yellow-Green"],       # Neck -> R. Hip ( Yellow-Green)
+        base_colors_255_dict["Bright Green"],     # R. Hip -> R. Knee (Bright Green - transitioning warm to cool spectrum)
+        base_colors_255_dict["Light Green-Blue"], # R. Knee -> R. Ankle (Light Green-Blue - transitioning)
+        base_colors_255_dict["Pure Blue"],        # Neck -> L. Hip (Pure Blue)
+        base_colors_255_dict["Purple-Blue"],      # L. Hip -> L. Knee (Purple-Blue)
+        base_colors_255_dict["Medium Purple"],    # L. Knee -> L. Ankle (Medium Purple)
+        base_colors_255_dict["Grey"],             # Neck -> Nose (Grey)
+        base_colors_255_dict["Pink-Magenta"],     # Nose -> R. Eye (Pink/Magenta)
+        base_colors_255_dict["Dark Violet"],        # R. Eye -> R. Ear (Dark Pink)
+        base_colors_255_dict["Pink-Magenta"],           # Nose -> L. Eye (Violet)
+        base_colors_255_dict["Dark Violet"],      # L. Eye -> L. Ear (Dark Violet)
+    ] for base_colors_255_dict in base_colors_255_dict_list]
+
+    limb_seq = [
+        [1, 2],    # 0 Neck -> R. Shoulder
+        [1, 5],    # 1 Neck -> L. Shoulder
+        [2, 3],    # 2 R. Shoulder -> R. Elbow
+        [3, 4],    # 3 R. Elbow -> R. Wrist
+        [5, 6],    # 4 L. Shoulder -> L. Elbow
+        [6, 7],    # 5 L. Elbow -> L. Wrist
+        [1, 8],    # 6 Neck -> R. Hip
+        [8, 9],    # 7 R. Hip -> R. Knee
+        [9, 10],   # 8 R. Knee -> R. Ankle
+        [1, 11],   # 9 Neck -> L. Hip
+        [11, 12],  # 10 L. Hip -> L. Knee
+        [12, 13],  # 11 L. Knee -> L. Ankle
+        [1, 0],    # 12 Neck -> Nose
+        [0, 14],   # 13 Nose -> R. Eye
+        [14, 16],  # 14 R. Eye -> R. Ear
+        [0, 15],   # 15 Nose -> L. Eye
+        [15, 17],  # 16 L. Eye -> L. Ear
+    ]
+
+    draw_seq = [0, 2, 3, # Neck -> R. Shoulder -> R. Elbow -> R. Wrist
+                1, 4, 5, # Neck -> L. Shoulder -> L. Elbow -> L. Wrist
+                6, 7, 8, # Neck -> R. Hip -> R. Knee -> R. Ankle
+                9, 10, 11, # Neck -> L. Hip -> L. Knee -> L. Ankle
+                12, # Neck -> Nose
+                13, 14, # Nose -> R. Eye -> R. Ear
+                15, 16, # Nose -> L. Eye -> L. Ear
+                ]   # 从近心端往外扩展
+
+    colors_first = [[c / 300 + 0.15 for c in color_rgb] + [0.8] for color_rgb in ordered_colors_255_list[0]]
+    colors_second = [[c / 300 + 0.15 for c in color_rgb] + [0.8] for color_rgb in ordered_colors_255_list[1]]
+
+    smpl_poses_first, smpl_poses_second = collect_smpl_poses_samurai(data)
+
+
+    if intrinsic_matrix is None:
+        intrinsic_matrix = intrinsic_matrix_from_field_of_view((height, width))
+    focal_x = intrinsic_matrix[0,0]
+    focal_y = intrinsic_matrix[1,1]
+    princpt = (intrinsic_matrix[0,2], intrinsic_matrix[1,2])  # 主点 (cx, cy)
+
+    # 串行获取每一帧的cylinder_specs
+    cylinder_specs_list = []
+    for i in range(video_length):
+        cylinder_specs_first = get_single_pose_cylinder_specs((i, smpl_poses_first[i], None, None, None, None, colors_first, limb_seq, draw_seq))
+        cylinder_specs_second = get_single_pose_cylinder_specs((i, smpl_poses_second[i], None, None, None, None, colors_second, limb_seq, draw_seq))
+        cylinder_specs = cylinder_specs_first + cylinder_specs_second
+        cylinder_specs_list.append(cylinder_specs)
+
+
+    frames_np_rgba = render_whole(cylinder_specs_list, H=height, W=width, fx=focal_x, fy=focal_y, cx=princpt[0], cy=princpt[1])
+    if poses is not None and draw_2d:
+        aligned_poses = copy.deepcopy(poses)
+        canvas_2d = draw_pose_to_canvas_np(aligned_poses, pool=None, H=height, W=width, reshape_scale=0, show_feet_flag=False, show_body_flag=False, show_cheek_flag=True, dw_hand=True)
+        for i in range(len(frames_np_rgba)):
+            frame_img = frames_np_rgba[i]
+            canvas_img = canvas_2d[i]
+            mask = canvas_img != 0
+            frame_img[:, :, :3][mask] = canvas_img[mask]
+            frames_np_rgba[i] = frame_img
 
     return frames_np_rgba

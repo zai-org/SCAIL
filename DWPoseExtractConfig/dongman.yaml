@@ -7,5 +7,5 @@ filter_args:
   select_speed: 0.5
   save_mp4: True
   use_fail_prompt: True
-  reshape: "normal"
+  reshape: "dongman"
   finetune_num: 500

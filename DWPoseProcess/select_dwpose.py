@@ -162,10 +162,29 @@ def check_nlf_result(dwpose_data, video_height, video_width, smpl_extracted_data
 #                 match_t.append(t)
 #     return match_t, nozero_t
 
-def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width, fps, multi_person, use_filter=True, no_interval=False, total_uncheck=False, select_speed=0): 
+def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width, fps, multi_person, no_interval=False, total_uncheck=False, select_speed=0): 
+    target_fps = 16
     try:
         ori_poses = torch.load(keypoint_path, weights_only=False)
         ori_bboxes = torch.load(bbox_path, weights_only=False)
+        if total_uncheck:      # multi的
+            pick_indices = np.arange(0, len(ori_poses)-1, fps / target_fps).astype(int)
+            pick_len = len(pick_indices)
+            if pick_len < 65:
+                return None  # 或者 return [], [], -1，看你逻辑需要
+            elif pick_len >= 81:
+                clip_len = 81
+            elif pick_len >= 65:
+                clip_len = 65
+            start = random.randint(0, clip_len - clip_len)
+            final_motion_indices = pick_indices[start:start + clip_len].tolist()
+            if start > 2:
+                final_ref_image_indices = pick_indices[0:start].tolist()
+            else:
+                final_ref_image_indices = [0]
+            return final_motion_indices, final_ref_image_indices, -1
+
+
         if not os.path.exists(smpl_path):
             return None
         ori_smpl = pickle.load(open(smpl_path, 'rb'))
@@ -175,14 +194,12 @@ def process_video_to_indices(keypoint_path, bbox_path, smpl_path, height, width,
             else torch.empty((0, 24, 3)) 
             for i in range(len(collected_nlf))
         ]
-        target_fps = 16
+        
 
         H, W = height, width
         max_slide_attempts = 80
         # 定义可选的 motion_part_len 值
         possible_lengths = [65, 81, 162]
-        if total_uncheck:
-            return list(range(len(ori_poses))), [0], -1   # 全部通过 不筛选
         if no_interval:
             pick_indices = np.arange(0, len(ori_poses), 1).astype(int)   # 不去掉首尾帧，适用于生成的，或者无需切的数据            
         else:
@@ -357,11 +374,11 @@ def process_tar(wds_chunk, chunk_id, output_root, save_dir_keypoints, save_dir_b
 
                 if filter_args is None or filter_args.get('use_filter', False) == True:
                     select_speed = filter_args.get('select_speed', 0)
-                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, out_path_smpl, height, width, fps, multi_person, use_filter=True, select_speed=select_speed)
+                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, out_path_smpl, height, width, fps, multi_person, select_speed=select_speed)
                 elif filter_args.get('use_filter', False) == False:
                     total_uncheck = filter_args.get('total_uncheck', False)
                     no_interval = filter_args.get('no_interval', False)
-                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, out_path_smpl, height, width, fps, multi_person, use_filter=False, no_interval=no_interval, total_uncheck=total_uncheck, select_speed=-1)
+                    process_result = process_video_to_indices(out_path_keypoint, out_path_bbox, out_path_smpl, height, width, fps, multi_person, no_interval=no_interval, total_uncheck=total_uncheck, select_speed=-1)
                 if process_result is None:
                     continue
 

@@ -5,6 +5,7 @@ max_detector_threads: 4
 
 filter_args:
   use_filter: True
+  select_speed: 12
   save_mp4: True
   use_fail_prompt: True
   reshape: "high"

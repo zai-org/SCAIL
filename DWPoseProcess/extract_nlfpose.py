@@ -95,6 +95,61 @@ def process_video_nlf(model, vr_frames, bboxes):
     return pose_meta_list
 
 
+def process_video_multi_nlf(model, vr_frames_list):   # vr_frames_list里支持1-3人
+    # Ensure output directory exists
+    # pose_results = {
+    #     'joints3d_nonparam': [],
+    # }
+    pose_meta_list = []
+    vr_frames_first = vr_frames_list[0].cuda()
+    # vr_frames_second = vr_frames_second.cuda()
+    height, width = vr_frames_first.shape[1], vr_frames_first.shape[2]
+    result_list = []
+
+    batch_size = 64
+    buffer = torch.zeros(
+        (batch_size, height, width, 3),
+        dtype=vr_frames_first.dtype,
+        device='cuda'
+    )
+    buffer_count = 0
+    with torch.inference_mode(), torch.device('cuda'):
+        for frame_idx in range(len(vr_frames_first)):
+            for person_idx in range(len(vr_frames_list)):
+                buffer[buffer_count, :, :, :] = vr_frames_first[frame_idx] if person_idx == 0 else vr_frames_list[person_idx][frame_idx]
+                buffer_count += 1
+                # 一旦 buffer 满了，推理并清空
+                if buffer_count == batch_size:
+                    frame_batch = buffer.permute(0, 3, 1, 2)
+                    pred = model.detect_smpl_batched(frame_batch)
+                    if 'joints3d_nonparam' in pred:
+                        result_list.extend(pred['joints3d_nonparam'])
+                    else:
+                        result_list.extend([None] * buffer_count)
+
+                    buffer.zero_()
+                    buffer_count = 0
+
+        # 处理最后不满一批的残余
+        if buffer_count > 0:
+            frame_batch = buffer[:buffer_count].permute(0, 3, 1, 2)
+            pred = model.detect_smpl_batched(frame_batch)
+            if 'joints3d_nonparam' in pred:
+                result_list.extend(pred['joints3d_nonparam'])
+            else:
+                result_list.extend([None] * buffer_count)
+
+    index = 0
+    length_step = len(vr_frames_list)
+    for _ in range(len(vr_frames_first)):
+        pose_meta_list.append({"video_height": height, "video_width": width, "bboxes": None, "nlfpose": result_list[index : index + length_step]})
+        index += length_step
+
+    del buffer               # 删除 Python 引用
+    torch.cuda.empty_cache()
+    return pose_meta_list
+
+
 def process_video_nlf_original(model, vr_frames):
     # Ensure output directory exists
     # pose_results = {

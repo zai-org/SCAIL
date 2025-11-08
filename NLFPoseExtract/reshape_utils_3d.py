@@ -41,6 +41,9 @@ class reshapePool3d:
             weights = [0.4, 0.1, 0.1, 0.1, 0.2, 0.1]
         elif self.reshape_type == "high":
             weights = [0.3, 0.2, 0.1, 0.1, 0.2, 0.1]
+        elif self.reshape_type == "dongman":
+            weights = [0.1, 0.2, 0.2, 0.2, 0.2, 0.1]
+            self.face_alpha = random.choices([-0.4, -0.2, 0.4], weights=[0.4, 0.2, 0.4], k=1)[0]
         choice = random.choices(options, weights=weights, k=1)[0]
         self.aug_init(choice)
 

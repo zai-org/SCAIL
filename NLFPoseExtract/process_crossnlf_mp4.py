@@ -92,14 +92,21 @@ def resize_for_rectangle_crop(arr, image_size, reshape_mode='random'):
 if __name__ == '__main__':
     model_nlf = torch.jit.load("/workspace/yanwenhao/dwpose_draw/NLFPoseExtract/nlf_l_multi_0.3.2.torchscript").cuda().eval()
 
-    evaluation_dir = "/workspace/ywh_data/EvalCross/cross_pair_eval100"
-    wan_dir = "/workspace/ywh_data/EvalCross/Results/wan2.2-animate"
+    # evaluation_dir = "/workspace/ywh_data/EvalCross/cross_pair_eval100"
+    # evaluation_dir = "/workspace/ywh_data/EvalCross/product_eval_2"
+    # evaluation_dir = "/workspace/ywh_data/EvalCross/product_eval_long"
+    evaluation_dir = "/workspace/ys_data/cross_pair_hard/eval_data_v2"
     decord.bridge.set_bridge("torch")
 
     for subdir_idx, subdir in tqdm(enumerate(sorted(os.listdir(evaluation_dir)))):
         mp4_path = os.path.join(evaluation_dir, subdir, 'GT.mp4')
+        # mp4_path = os.path.join(evaluation_dir, subdir, 'raw.mp4')
         out_path_aligned = os.path.join(evaluation_dir, subdir, 'smpl_aligned.mp4')
         ref_image_path = os.path.join(evaluation_dir, subdir, 'ref_image.jpg')
+        if not os.path.exists(ref_image_path):
+            ref_image_path = os.path.join(evaluation_dir, subdir, 'ref_image.png')
+        if not os.path.exists(ref_image_path):
+            ref_image_path = os.path.join(evaluation_dir, subdir, 'ref.jpg')
         meta_cache_dir = os.path.join(evaluation_dir, subdir, 'meta')
         poses_cache_path = os.path.join(meta_cache_dir, 'keypoints.pt')
         det_cache_path = os.path.join(meta_cache_dir, 'bboxes.pt')
@@ -107,8 +114,6 @@ if __name__ == '__main__':
         poses_ref_cache_path = os.path.join(meta_cache_dir, 'keypoints_ref.pt')
         nlf_ref_cache_path = os.path.join(meta_cache_dir, 'nlf_results_ref.pkl')
         os.makedirs(meta_cache_dir, exist_ok=True)
-        src_pose_path = os.path.join(wan_dir, subdir, 'src_pose.mp4')
-        shutil.copy(src_pose_path, os.path.join(evaluation_dir, subdir, 'wan_src_pose.mp4'))
 
         vr = VideoReader(mp4_path)
         vr_frames = vr.get_batch(list(range(len(vr))))   # T H W C

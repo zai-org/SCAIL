@@ -65,7 +65,7 @@ def process_fn_video(src, meta_dict=None):
 
         yield item
 
-def pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug):
+def pack_render_to_wds(wds_path, output_wds_path, save_dir_smpl_render):
     obj_list = []
     meta_dict = {}
     meta_file = wds_path.replace('.tar', '.meta.jsonl')
@@ -92,30 +92,27 @@ def pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_d
     with TarWriter(output_wds_path) as writer:
         for data in tqdm(dataloader):
             key = data['__key__']
+            obj = meta_dict.get(key, None)
+            if obj is None:
+                print(f"skip {key}, no meta")
+                continue
             # motion_indices = data['motion_indices']
             try:
                 smpl_rendered_path = os.path.join(save_dir_smpl_render, key + '.mp4')
-                smpl_rendered_aug_path = os.path.join(save_dir_smpl_render_aug, key + '.mp4')
-                smpl_rendered_noface_path = os.path.join(save_dir_smpl_render_aug.replace('smpl_render_aug', 'smpl_render_noface'), key + '.mp4')
-                if not os.path.exists(smpl_rendered_path) or not os.path.exists(smpl_rendered_aug_path) or not os.path.exists(smpl_rendered_noface_path):
+                if not os.path.exists(smpl_rendered_path):
                     print(f"skip {key}, no smpl rendered")
                     continue
                 
                 with open(smpl_rendered_path, "rb") as f:
                     smpl_render_data = f.read()
 
-                with open(smpl_rendered_aug_path, "rb") as f:
-                    smpl_render_data_aug = f.read()
-                
-                with open(smpl_rendered_noface_path, "rb") as f:
-                    smpl_render_data_noface = f.read()
-
                 data['append_smpl_render'] = smpl_render_data
-                data['append_smpl_render_aug'] = smpl_render_data_aug
-                data['append_smpl_render_noface'] = smpl_render_data_noface
+                data['append_smpl_render_aug'] = smpl_render_data
+                data['append_smpl_render_noface'] = smpl_render_data
+                obj['long_caption_specify_indices'] = obj.get('long_caption_v5', None)
 
                 data.pop('motion_indices')
-                obj_list.append(meta_dict.get(key, None))
+                obj_list.append(obj)
                 writer.write(data)
             except Exception as e:
                 print(e)
@@ -127,11 +124,11 @@ def pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_d
         writer.close()
         
 
-def process_tar_chunk(chunk, input_root, output_root, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug):
+def process_tar_chunk(chunk, input_root, output_root, save_dir_smpl_render):
     for wds_path in chunk:
         rel_path = os.path.relpath(wds_path, input_root)
         output_wds_path = os.path.join(output_root, rel_path)
-        pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug)
+        pack_render_to_wds(wds_path, output_wds_path, save_dir_smpl_render)
         gc.collect()
     
 def load_config(config_path):
@@ -144,16 +141,12 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='video_directories.yaml', 
+    parser.add_argument('--config', type=str, default='DWPoseExtractConfig/multi.yaml', 
                         help='Path to YAML configuration file')
     parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_1024_step3',
                         help='Input root')
-    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_1105_step5',
+    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_1101multi_step5_final',
                         help='Output root')
-    parser.add_argument('--max_processes', type=int, default=8,
-                        help='Max processes')
-    parser.add_argument('--current_process', type=int, default=0,
-                        help='Current process')
 
     args = parser.parse_args()
     config = load_config(args.config)
@@ -175,19 +168,16 @@ if __name__ == "__main__":
     save_dir_smpl_render_aug = os.path.join(video_root, 'smpl_render_aug')
 
     processes = []  # 存储进程的列表
-    max_processes = args.max_processes
 
     input_dir = os.path.join(args.input_root, os.path.basename(os.path.normpath(video_root)))
-    output_dir = os.path.join(args.output_root, os.path.basename(os.path.normpath(video_root)))
+    output_dir = args.output_root
     os.makedirs(output_dir, exist_ok=True)
     # Split wds_list into chunks
     input_tar_paths = sorted(glob.glob(os.path.join(input_dir, "**", "*.tar"), recursive=True))
 
-    current_process = args.current_process
-    current_tar_paths = input_tar_paths[current_process::max_processes]
-    if len(current_tar_paths) == 0:
+    if len(input_tar_paths) == 0:
         print("No chunks to process")
-    process_tar_chunk(current_tar_paths, input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug)
+    process_tar_chunk(input_tar_paths, input_dir, output_dir, save_dir_smpl_render)
 
 
 

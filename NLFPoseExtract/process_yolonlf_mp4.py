@@ -30,15 +30,16 @@ except:
 if __name__ == '__main__':
     model_nlf = torch.jit.load("/workspace/yanwenhao/dwpose_draw/NLFPoseExtract/nlf_l_multi_0.3.2.torchscript").cuda().eval()
 
-    evaluation_dir = "/workspace/ywh_data/EvalSelf/evaluation_300_old"
+    # evaluation_dir = "/workspace/ywh_data/EvalSelf/evaluation_300_old"
     # evaluation_dir = "/workspace/yanwenhao/dwpose_draw/multi_test/results"
+    evaluation_dir = "/workspace/ys_data/evaluation_multiple_human_v3/eval_data"
     decord.bridge.set_bridge("torch")
 
     for subdir_idx, subdir in tqdm(enumerate(sorted(os.listdir(evaluation_dir)))):
         # if subdir != "005":
         #     continue
         mp4_path = os.path.join(evaluation_dir, subdir, 'GT.mp4')
-        out_path = os.path.join(evaluation_dir, subdir, 'smpl_hybrid_test.mp4')
+        out_path = os.path.join(evaluation_dir, subdir, 'smpl_hybrid.mp4')
         meta_cache_dir = os.path.join(evaluation_dir, subdir, 'meta')
         poses_cache_path = os.path.join(meta_cache_dir, 'keypoints.pt')
         det_cache_path = os.path.join(meta_cache_dir, 'bboxes.pt')
@@ -56,8 +57,8 @@ if __name__ == '__main__':
             with open(nlf_cache_path, 'rb') as f:
                 nlf_results = pickle.load(f)
 
-            reshapepool = reshapePool3d(reshape_type="high", height=height, width=width)
-            frames_ori_np = render_nlf_as_images(nlf_results, poses, reshape_pool=reshapepool)
+            # reshapepool = reshapePool3d(reshape_type="high", height=height, width=width)
+            frames_ori_np = render_nlf_as_images(nlf_results, poses, reshape_pool=None)
             mpy.ImageSequenceClip(frames_ori_np, fps=16).write_videofile(out_path)
         else:
             detector = DWposeDetector(use_batch=False).to(0)

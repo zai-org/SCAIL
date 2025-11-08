@@ -408,9 +408,11 @@ def run_align_video(vid_height, vid_width, ref_height, ref_width, pose_refer, po
 
     align_args_list = [dict() for _ in range(len(body_ref_img_multi))]
     offset_list = [[0, 0] for _ in range(len(body_ref_img_multi))]
-    assert len(body_ref_img_multi) == len(body_1st_img_multi), "person num in ref and driving video should be the same"
+    # assert len(body_ref_img_multi) == len(body_1st_img_multi), "person num in ref and driving video should be the same"
 
     for body_idx in range(len(body_ref_img_multi)):
+        if body_idx > 0:
+            continue
         body_ref_img = body_ref_img_multi[body_idx]
         body_1st_img = body_1st_img_multi[body_idx]
         hands_ref_img = hands_ref_img_multi[2*body_idx: 2*body_idx+2]
@@ -448,6 +450,11 @@ def run_align_video(vid_height, vid_width, ref_height, ref_width, pose_refer, po
         # estimate scale parameters by the 1st frame in the video
         # pose align
         pose_ori = pose_video[i]
+        if not len(align_args_list) == len(pose_ori['bodies']['candidate']):
+            min_len = min(len(align_args_list), len(pose_ori['bodies']['candidate']))
+            align_args_list = align_args_list[:min_len]
+            pose_ori['bodies']['candidate'] = pose_ori['bodies']['candidate'][:min_len]
+            
         pose_align = align_img(pose_ori, align_args_list, video_ratio)
 
         # 这里也要改

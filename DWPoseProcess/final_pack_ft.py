@@ -39,6 +39,23 @@ try:
 except:
     import moviepy as mpy
 
+
+def collect_keys_from_dirs():
+    mp4_ft_dir = "/workspace/ywh_data/ftData_add/finetune_selected"
+    mp4_stunt_dir = "/workspace/ywh_data/ftData_add/pose_finetune_preview_0929add/stunt_mb_v2025091601"
+    mp4_excluded_dir = "/workspace/ywh_data/ftData_add/finetune_excluded"
+    keys_mp4_ft = [key.split(".")[0] for key in os.listdir(mp4_ft_dir)]
+    keys_mp4_stunt = [key.split(".")[0] for key in os.listdir(mp4_stunt_dir)]
+    keys_mp4_excluded = [key.split(".")[0] for key in os.listdir(mp4_excluded_dir)]
+    keys_mp4_ft = list(set(keys_mp4_ft + keys_mp4_stunt) - set(keys_mp4_excluded))
+    return keys_mp4_ft
+
+def collect_keys_from_jsonl():
+    jsonl_path = "/workspace/ywh_data/ftData/SkelVid_Manual_11249.jsonl"
+    with jsonlines.open(jsonl_path) as reader:
+        keys = [(os.path.basename(obj["origin_path"])).split(".")[0] for obj in reader if obj["是否符合"] == "符合"]
+    return keys
+
 def process_fn_video(src, meta_dict=None):
     worker_info = torch.utils.data.get_worker_info()
     for i, r in enumerate(src):
@@ -65,7 +82,7 @@ def process_fn_video(src, meta_dict=None):
 
         yield item
 
-def pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug):
+def pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug, keys_all):
     obj_list = []
     meta_dict = {}
     meta_file = wds_path.replace('.tar', '.meta.jsonl')
@@ -92,6 +109,10 @@ def pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_d
     with TarWriter(output_wds_path) as writer:
         for data in tqdm(dataloader):
             key = data['__key__']
+            if key not in keys_all:
+                continue
+            else:
+                print(f"process {key}")
             # motion_indices = data['motion_indices']
             try:
                 smpl_rendered_path = os.path.join(save_dir_smpl_render, key + '.mp4')
@@ -127,11 +148,11 @@ def pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_d
         writer.close()
         
 
-def process_tar_chunk(chunk, input_root, output_root, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug):
+def process_tar_chunk(chunk, input_root, output_root, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug, keys_all):
     for wds_path in chunk:
         rel_path = os.path.relpath(wds_path, input_root)
         output_wds_path = os.path.join(output_root, rel_path)
-        pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug)
+        pack_render_to_wds(wds_path, output_wds_path, save_dir_keypoints, save_dir_dwpose_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug, keys_all)
         gc.collect()
     
 def load_config(config_path):
@@ -144,16 +165,12 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='video_directories.yaml', 
+    parser.add_argument('--config', type=str, default='DWPoseExtractConfig/gymnastics_mb_v2025091601.yaml', 
                         help='Path to YAML configuration file')
-    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_1024_step3',
+    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0929add_step3',
                         help='Input root')
-    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_1105_step5',
+    parser.add_argument('--output_root', type=str, default='/workspace/ywh_data/pose_packed_wds_1024_step5',
                         help='Output root')
-    parser.add_argument('--max_processes', type=int, default=8,
-                        help='Max processes')
-    parser.add_argument('--current_process', type=int, default=0,
-                        help='Current process')
 
     args = parser.parse_args()
     config = load_config(args.config)
@@ -174,20 +191,17 @@ if __name__ == "__main__":
     save_dir_smpl_render = os.path.join(video_root, 'smpl_render')
     save_dir_smpl_render_aug = os.path.join(video_root, 'smpl_render_aug')
 
-    processes = []  # 存储进程的列表
-    max_processes = args.max_processes
+
+    keys_mp4 = collect_keys_from_dirs()
+    keys_jsonl = collect_keys_from_jsonl()
+    keys_all = keys_mp4 + keys_jsonl
 
     input_dir = os.path.join(args.input_root, os.path.basename(os.path.normpath(video_root)))
     output_dir = os.path.join(args.output_root, os.path.basename(os.path.normpath(video_root)))
     os.makedirs(output_dir, exist_ok=True)
     # Split wds_list into chunks
     input_tar_paths = sorted(glob.glob(os.path.join(input_dir, "**", "*.tar"), recursive=True))
-
-    current_process = args.current_process
-    current_tar_paths = input_tar_paths[current_process::max_processes]
-    if len(current_tar_paths) == 0:
-        print("No chunks to process")
-    process_tar_chunk(current_tar_paths, input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug)
+    process_tar_chunk(input_tar_paths, input_dir, output_dir, save_dir_keypoints, save_dir_dwpose_reshape_mp4, save_dir_smpl, save_dir_smpl_render, save_dir_smpl_render_aug, keys_all)
 
 
 

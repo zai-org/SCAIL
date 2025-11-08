@@ -159,7 +159,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='video_directories.yaml', 
                         help='Path to YAML configuration file')
-    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_0929_step3',
+    parser.add_argument('--input_root', type=str, default='/workspace/ywh_data/pose_packed_wds_1024_step3',
                         help='Input root')
     parser.add_argument('--max_processes', type=int, default=8,
                         help='Max processes')
