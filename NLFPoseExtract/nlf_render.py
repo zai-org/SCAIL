@@ -5,7 +5,7 @@ from PIL import Image
 from render_3d.taichi_cylinder import render_whole
 from NLFPoseExtract.nlf_draw import intrinsic_matrix_from_field_of_view, process_data_to_COCO_format, preview_nlf_2d
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from pose_draw.draw_pose_main import draw_pose_to_canvas_np, scale_image_hw_keep_size
+from pose_draw.draw_pose_utils import draw_pose_to_canvas_np, scale_image_hw_keep_size
 import torch.multiprocessing as mp
 import os
 os.environ['PYOPENGL_PLATFORM'] = 'osmesa'

@@ -1,4 +1,12 @@
 import os
+import sys
+
+# 动态添加项目根目录到 sys.path，这样就不需要 export PYTHONPATH
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)  # SCAIL_Pose 目录
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import random
 from pathlib import Path
 import multiprocessing
@@ -9,7 +17,6 @@ from collections import deque
 import shutil
 import torch
 import yaml
-from pose_draw.draw_pose_main import draw_pose_to_canvas, reshapePool
 import webdataset as wds
 from torch.utils.data import DataLoader
 from tqdm import tqdm

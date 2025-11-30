@@ -185,14 +185,36 @@ class reshapePool3d:
             self.calf_alpha = random.uniform(-0.2, 0.2)
             self.body_alpha = random.uniform(-0.1, 0.1)
             self.body_reshape_selected_methods = [self.reshape_body, self.reshape_arm, self.reshape_leg]
-        # elif body_type == "test_case":
-        #     self.upper_arm_alpha = -0.4
-        #     self.forearm_alpha = -0.4
-        #     self.shoulder_alpha = -0.3
-        #     self.thigh_alpha = 0.2
-        #     self.calf_alpha = 0.2
-        #     self.body_alpha = 0.1
-        #     self.body_reshape_selected_methods = [self.reshape_body, self.reshape_shoulder, self.reshape_arm, self.reshape_leg]
+        elif body_type == "test_case_1":
+            self.upper_arm_alpha = -0.4
+            self.forearm_alpha = -0.4
+            self.shoulder_alpha = -0.3
+            self.thigh_alpha = 0.2
+            self.calf_alpha = 0.2
+            self.body_alpha = 0.1
+            self.face_alpha = 0.4
+            self.body_reshape_selected_methods = [self.reshape_body, self.reshape_shoulder, self.reshape_arm, self.reshape_leg]
+        elif body_type == "test_case_2":
+            self.upper_arm_alpha = 0.4
+            self.forearm_alpha = 0.4
+            self.shoulder_alpha = 0.3
+            self.thigh_alpha = -0.2
+            self.calf_alpha = -0.25
+            self.body_alpha = -0.2
+            self.face_alpha = -0.2
+            self.body_reshape_selected_methods = [self.reshape_body, self.reshape_shoulder, self.reshape_arm, self.reshape_leg]
+        elif body_type == "test_case_3":
+            self.upper_arm_alpha = 0.2
+            self.forearm_alpha = 0.2
+            self.shoulder_alpha = 0.2
+            self.thigh_alpha = 0.4
+            self.calf_alpha =  0.4
+            self.body_alpha =  0.3
+            self.face_alpha = 0.15
+            self.body_reshape_selected_methods = [self.reshape_body, self.reshape_shoulder, self.reshape_arm, self.reshape_leg]
+        elif body_type == "normal_human_test":
+            self.body_reshape_selected_methods = []
+            self.face_alpha = 0
 
 
 

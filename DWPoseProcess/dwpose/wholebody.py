@@ -17,7 +17,7 @@ class Wholebody:
             "device_id": device
         })]
         # providers = [("CPUExecutionProvider", {})]
-        onnx_det = '/workspace/yanwenhao/YOLOX/yolox_l.onnx'
+        onnx_det = ModelDataPathPrefix.joinpath("DWPose/yolox_l.onnx")
         onnx_pose = ModelDataPathPrefix.joinpath("DWPose/dw-ll_ucoco_384.onnx")
 
         self.session_det = ort.InferenceSession(

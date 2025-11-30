@@ -34,13 +34,7 @@ def draw_pose(pose, H, W, show_feet=False, show_body=True, show_hand=True, show_
         if show_body:
             if len(subset[0]) <= 18 or show_feet == False:
                 if aug_body_draw:
-                    rand = random.random()
-                    if rand < 0.035:  # 非常小概率
-                        canvas = util.draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=False, shift_aug=True)
-                    elif rand < 0.3:
-                        canvas = util.draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=True, shift_aug=False)   # 本身里面只有50%概率drop，也就是5帧可能有一帧drop
-                    else:
-                        canvas = util.draw_bodypose_augmentation(canvas, candidate, subset, drop_aug=False, shift_aug=False)
+                    raise NotImplementedError("aug_body_draw is not implemented yet")
                 else:
                     canvas = util.draw_bodypose(canvas, candidate, subset)
             else:
@@ -114,7 +108,7 @@ def draw_pose_to_canvas(poses, pool, H, W, reshape_scale, points_only_flag, show
     for pose in poses:
         if reshape_scale > 0:
             pool.apply_random_reshapes(pose)
-        canvas = draw_pose(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag, show_cheek_flag, dw_bgr, dw_hand, aug_body_draw, optimized_face=True)
+        canvas = draw_pose(pose, H, W, show_feet_flag, show_body_flag, show_hand_flag, show_face_flag, show_cheek_flag, dw_bgr, dw_hand, aug_body_draw, optimized_face=False)
         canvas_img = Image.fromarray(canvas)
         canvas_lst.append(canvas_img)
     return canvas_lst
@@ -171,80 +165,5 @@ def load_config(config_path):
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     return config
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Process video directories based on YAML config')
-    parser.add_argument('--config', type=str, default='video_directories.yaml', 
-                        help='Path to YAML configuration file')
-    args = parser.parse_args()
-    # Load configuration
-    config = load_config(args.config)
-
-    directories = config.get("directories")
-    threed_kpt_dirs = config.get("threed_kpt_dirs", None)
-    if threed_kpt_dirs:
-        assert len(threed_kpt_dirs) == len(directories), "threed_kpt_dirs must have the same length as directories"
-    reshape_scale = config.get("reshape_scale", 0)
-    points_only_flag = config.get("points_only_flag", False)
-    remove_last_flag = config.get("remove_last_flag", False)
-    show_feet_flag = config.get("show_feet_flag", False)
-    pose_type = config.get("pose_type", "dwpose")
-    target_representation_dirname = config.get("target_representation_suffix", None)
-    keypoints_suffix_dwpose = config.get("keypoints_suffix_dwpose", "_keypoints")
-    parallel_flag = config.get("parallel_flag", False)
-
-
-
-
-    for dir_idx, directory in enumerate(directories):
-        mp4_paths = []
-        dwpose_keypoint_paths = []
-        threed_keypoint_paths = []
-        output_representation_dir = directory + target_representation_dirname
-        if remove_last_flag:
-            # 删除 directory 中所有文件
-            if os.path.exists(output_representation_dir):
-                shutil.rmtree(output_representation_dir)
-            print(f"已清除上次产生的{output_representation_dir}文件夹")
-
-        video_directory_name = directory.split("/")[-1]
-        # video_directory_name 是 directory的最后一层子目录
-        dwpose_keypoints_dir = directory.replace(video_directory_name, f"{video_directory_name}{keypoints_suffix_dwpose}")
-        mp4_filenames_dwpose = get_mp4_filenames_from_directory(dwpose_keypoints_dir)
-        if "3dpose" in pose_type:
-            threed_kpt_dir = threed_kpt_dirs[dir_idx]
-
-        print(f"Processing directory: {directory}")
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                if "3dpose" in pose_type:
-                    if file in mp4_filenames_dwpose and file.lower().endswith('.mp4'):  # 只查找 .mp4 文件
-                        full_path = os.path.join(root, file)  # 获取绝对路径
-                        full_dwpose_path = os.path.join(dwpose_keypoints_dir, file.replace(".mp4", ".pt"))
-                        full_threed_path = (os.path.join(threed_kpt_dir, file.replace(".mp4", ""), "keypoints_3d.pt"), os.path.join(threed_kpt_dir, file.replace(".mp4", ""), "camera.json"))
-                        if os.path.exists(full_threed_path[0]) and os.path.exists(full_threed_path[1]):
-                            mp4_paths.append(full_path)
-                            dwpose_keypoint_paths.append(full_dwpose_path)
-                            threed_keypoint_paths.append(full_threed_path)
-
-                elif "dwpose" in pose_type:
-                    if file in mp4_filenames_dwpose and file.lower().endswith('.mp4'):  # 只查找 .mp4 文件
-                        full_path = os.path.join(root, file)  # 获取绝对路径
-                        full_dwpose_path = os.path.join(dwpose_keypoints_dir, file.replace(".mp4", ".pt"))
-                        mp4_paths.append(full_path)
-                        dwpose_keypoint_paths.append(full_dwpose_path)
-                        threed_keypoint_paths.append(None)
-
-        
-        # 并行
-        if parallel_flag:
-            with Pool(64) as p:
-                p.starmap(process_video, [(mp4_path, dwpose_keypoint_paths[path_idx], threed_keypoint_paths[path_idx], reshape_scale, points_only_flag, show_feet_flag, 16, output_representation_dir, pose_type) for path_idx, mp4_path in enumerate(mp4_paths)])
-        else: # 串行
-            for path_idx, mp4_path in tqdm(enumerate(mp4_paths), desc="Processing videos", unit="video"):
-                process_video(mp4_path, dwpose_keypoint_paths[path_idx], threed_keypoint_paths[path_idx], reshape_scale, points_only_flag, show_feet_flag, wanted_fps=16, output_dirname=output_representation_dir, pose_type=pose_type)
-
-
-    
 
 

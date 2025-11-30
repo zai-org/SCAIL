@@ -28,11 +28,11 @@ def solve_new_camera_params_central(three_d_points, focal_length, imshape, new_2
 
     # 目标函数：最小化原始投影点和新的投影点之间的误差
     def objective(params):
-        m, n, p, q = params
+        m, s, p, q = params
         # 构建新的相机内参矩阵
         K_new = np.array([
             [focal_length * m , 0, imshape[1] / 2 + p],
-            [0, focal_length * n, imshape[0] / 2 + q],
+            [0, focal_length * m * s, imshape[0] / 2 + q],
             [0, 0, 1]
         ])
         
@@ -55,20 +55,20 @@ def solve_new_camera_params_central(three_d_points, focal_length, imshape, new_2
     initial_params = [1.0, 1.0, 0.0, 0.0]  # 初始值
 
     # 使用最小二乘法求解 p, q)
-    result = minimize(objective, initial_params, bounds=[(0.7, 1.4), (0.9, 1.1), (-imshape[1], imshape[1]), (-imshape[0], imshape[0])])
+    result = minimize(objective, initial_params, bounds=[(0.7, 1.4), (0.8, 1.15), (-imshape[1], imshape[1]), (-imshape[0], imshape[0])])
 
     # 输出求解结果
-    m, n, p, q = result.x
-    print(f"debug: solved camera params m={m}, n={n}, p={p}, q={q}")
+    m, s, p, q = result.x
+    print(f"debug: solved camera params m={m}, s={s}, p={p}, q={q}")
 
     K_final = np.array([
         [focal_length * m, 0, imshape[1] / 2 + p],
-        [0, focal_length * n, imshape[0] / 2 + q],
+        [0, focal_length * m * s, imshape[0] / 2 + q],
         [0, 0, 1]
     ])
 
 
-    return K_final
+    return K_final, m
 
 
 def solve_new_camera_params_down(three_d_points, focal_length, imshape, new_2d_points):
@@ -95,11 +95,11 @@ def solve_new_camera_params_down(three_d_points, focal_length, imshape, new_2d_p
 
     # 目标函数：最小化原始投影点和新的投影点之间的误差
     def objective(params):
-        m, n, p, q = params
+        m, s, p, q = params
         # 构建新的相机内参矩阵
         K_new = np.array([
             [focal_length * m , 0, imshape[1] / 2 + p],
-            [0, focal_length * n, imshape[0] / 2 + q],
+            [0, focal_length * m * s, imshape[0] / 2 + q],
             [0, 0, 1]
         ])
         
@@ -122,17 +122,17 @@ def solve_new_camera_params_down(three_d_points, focal_length, imshape, new_2d_p
     initial_params = [1.0, 1.0, 0.0, 0.0]  # 初始值
 
     # 使用最小二乘法求解 p, q)
-    result = minimize(objective, initial_params, bounds=[(0.9, 1.2), (0.7, 1.4), (-imshape[1], imshape[1]), (-imshape[0], imshape[0])])
+    result = minimize(objective, initial_params, bounds=[(0.7, 1.4), (0.8, 1.15), (-imshape[1], imshape[1]), (-imshape[0], imshape[0])])
 
     # 输出求解结果
-    m, n, p, q = result.x
-    print(f"debug: solved camera params m={m}, n={n}, p={p}, q={q}")
+    m, s, p, q = result.x
+    print(f"debug: solved camera params m={m}, s={s}, p={p}, q={q}")
 
     K_final = np.array([
         [focal_length * m, 0, imshape[1] / 2 + p],
-        [0, focal_length * n, imshape[0] / 2 + q],
+        [0, focal_length * m * s, imshape[0] / 2 + q],
         [0, 0, 1]
     ])
 
 
-    return K_final
+    return K_final, m
