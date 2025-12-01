@@ -1,0 +1,1 @@
+python eval_aes.py --img_dir=/mnt/shared/zwd/samples/ext-mini-sft/2k/drawbench

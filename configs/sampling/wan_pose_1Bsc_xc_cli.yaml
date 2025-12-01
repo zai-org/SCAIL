@@ -1,0 +1,18 @@
+args:
+  mode: inference
+  i2v_encode_video: True
+  latent_channels: 16
+  load: /workspace/yanwenhao/cogvideo_skeleton/ckpts/pose-wan-1bsc-v0x-latent-nlf-11-07-14-20_re
+  batch_size: 1
+  input_type: cli
+  sampling_image_size: [512, 896]
+  vae_compress_size: [4, 8, 8] # t h w
+  bf16: True
+  sampling_fps: 16
+  force_inference: True
+  sequence_parallel_size: 1
+  image2video: True
+  use_i2v_clip: True
+  use_pose: True
+  representation: 'smpl_downsample'
+  save_tag: official

@@ -1,0 +1,140 @@
+model:
+  use_i2v_clip: true
+  i2v_encode_video: true
+  scale_factor: 1.0 #1.15258426  0.25
+  disable_first_stage_autocast: true
+  latent_input: true
+  noised_image_input: true
+  use_pose: true
+  pose_dropout: 0.15
+  log_keys:
+    - txt
+  
+  denoiser_config:
+    target: sgm.modules.diffusionmodules.denoiser.Denoiser
+    params:
+      weighting_config:
+        target: sgm.modules.diffusionmodules.denoiser_weighting.EpsWeighting
+      scaling_config:
+        target: sgm.modules.diffusionmodules.denoiser_scaling.RFScaling
+
+  network_config:
+    target: dit_video_crossattn_sc_xc.DiffusionTransformer
+    params:
+      # num_classes: sequential
+      time_freq_dim: 256
+      time_embed_dim: 5120
+      share_adaln: True
+      elementwise_affine: False
+      num_frames: 81
+      time_compressed_rate: 4
+      latent_width: 300
+      latent_height: 300
+      num_layers: 40
+      patch_size: [1, 2, 2]
+      in_channels: 20
+      out_channels: 16
+      text_dim: 4096
+      hidden_size: 5120
+      inner_hidden_size: 13824
+      # adm_in_channels: 1152
+      num_attention_heads: 40
+      use_SwiGLU: False
+      use_RMSNorm: False
+      layernorm_epsilon: 1e-6
+
+      transformer_args:
+        checkpoint_activations: True
+        vocab_size: 1
+        max_sequence_length: 64
+        layernorm_order: pre
+        skip_init: false
+        model_parallel_size: 1
+        is_decoder: True
+
+      modules:
+        pos_embed_config:
+          target: dit_video_crossattn_sc_xc.Rotary3DPositionEmbeddingMixin
+          params:
+            hidden_size_head: 128
+            interleaved_rope: True
+            
+        patch_embed_config:
+          target: dit_video_crossattn_sc_xc.ImagePatchEmbeddingMixin
+          params:
+            use_conv: True
+
+        adaln_layer_config:
+          target: dit_video_crossattn_sc_xc.AdaLNMixin
+          params:
+            qk_ln: True
+            qk_ln_affine: True
+            hidden_size_head: 5120
+
+        final_layer_config:
+          target: dit_video_crossattn_sc_xc.FinalLayerMixin
+
+  conditioner_config:
+    target: sgm.modules.GeneralConditioner
+    params:
+      emb_models:
+        # crossattn cond
+          - is_trainable: false
+            input_key: txt
+            ucg_rate: 0.1
+            legacy_ucg_val: ""
+            target: sgm.modules.encoders.umt5.T5EncoderModel
+            params:
+              checkpoint_path: /workspace/ckpt/official_pretrains/umt5-xxl/models_t5_umt5-xxl-enc-bf16.pth
+              tokenizer_path: /workspace/ckpt/official_pretrains/umt5-xxl
+              max_length: 512
+
+      #     - is_trainable: false
+      #       input_key: txt
+      #       ucg_rate: 0
+      #       target: sgm.modules.encoders.modules.FrozenSiglipEmbedder
+      #       params:
+      #         cache_dir: /workspace/ckpt/official_pretrains/
+      # cor_embs: [0, 1]
+      # cor_p: [0.9, 0, 0, 0.1] # 对应于:00, 10, 01, 11, 1表示用uncond, 0表示用cond
+
+  i2v_clip_config:
+    target: sgm.modules.encoders.clip.CLIPModel
+    params:
+      checkpoint_path: /workspace/ckpt/official_pretrains/models_clip_open-clip-xlm-roberta-large-vit-huge-14-onlyvisual.pth
+
+  first_stage_config:
+    target : sgm.models.wan_vae.WanVAE
+    params:
+      vae_pth: /workspace/ckpt/official_pretrains/Wan2.1_VAE.pth
+      dtype: torch.bfloat16
+
+  loss_fn_config:
+    target: sgm.modules.diffusionmodules.loss.RFLoss
+    params:
+      schedule_shift: True
+      sigma_sampler_config:
+        target: sgm.modules.diffusionmodules.sigma_sampling.RFSampling
+        params:
+          p_mean: 0.0
+          p_std: 1.0
+
+  sampler_config:
+    target: sgm.modules.diffusionmodules.sampling.RFSampler
+    params:
+      mode: normal
+      schedule_shift: False
+      hunyuan_schedule: True
+      shift_scale: 5
+      num_steps: 50
+      verbose: True
+
+      discretization_config:
+        target: sgm.modules.diffusionmodules.discretizer.RFDiscretization
+        params:
+          reverse: False
+
+      guider_config:
+        target: sgm.modules.diffusionmodules.guiders.VanillaCFG
+        params:
+          scale: 4

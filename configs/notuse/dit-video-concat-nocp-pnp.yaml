@@ -1,0 +1,162 @@
+
+model:
+  scale_factor: 1.15258426
+  disable_first_stage_autocast: true
+  log_keys:
+    - txt
+  
+  denoiser_config:
+    target: sgm.modules.diffusionmodules.denoiser.DiscreteDenoiser
+    params:
+      num_idx: 1000
+      quantize_c_noise: False
+
+      weighting_config:
+        target: sgm.modules.diffusionmodules.denoiser_weighting.EpsWeighting
+      scaling_config:
+        target: sgm.modules.diffusionmodules.denoiser_scaling.VideoScaling
+      discretization_config:
+        target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
+        params:
+          shift_scale: 3.0
+
+  network_config:
+    target: dit_video_concat_pnp.DiffusionTransformer
+    params:
+      time_embed_dim: 512
+      elementwise_affine: True
+      num_frames: 160
+      time_compressed_rate: 4
+      latent_width: 48
+      latent_height: 32
+      num_layers: 1
+      patch_size: 2
+      in_channels: 16
+      out_channels: 16
+      hidden_size: 1920
+#      num_classes: sequential
+      adm_in_channels: 256
+      num_attention_heads: 30
+      # compress_frame: True
+      # pad_first: True
+
+      transformer_args:
+        vocab_size: 1
+        max_sequence_length: 64
+        layernorm_order: pre
+        skip_init: false
+        model_parallel_size: 1
+        is_decoder: false
+
+      modules:
+        pos_embed_config:
+          target: dit_video_concat_pnp.Rotary3DPositionEmbeddingMixin
+          params:
+            hidden_size_head: 64
+            pnp: True
+            
+        patch_embed_config:
+          target: dit_video_concat_pnp.ImagePatchEmbeddingMixin
+          params:
+            text_hidden_size: 4096
+
+        adaln_layer_config:
+          target: dit_video_concat_pnp.AdaLNMixin
+          params:
+            qk_ln: True
+
+        final_layer_config:
+          target: dit_video_concat_pnp.FinalLayerMixin
+
+  conditioner_config:
+    target: sgm.modules.GeneralConditioner
+    params:
+      emb_models:
+        # crossattn cond
+          - is_trainable: false
+            input_key: txt
+            ucg_rate: 0.1
+            target: sgm.modules.encoders.modules.FrozenT5Embedder
+            params:
+              cache_dir: /workspace/ckpt/official_pretrains/hf_home
+              max_length: 225
+#          - is_trainable: False
+#            input_key: num_frames
+#            ucg_rate: 0.1
+#            target: sgm.modules.encoders.modules.ConcatTimestepEmbedderND
+#            params:
+#              outdim: 256
+
+  first_stage_config:
+    target : sgm.models.autoencoder.VideoAutoencoderInferenceWrapper
+    params:
+        cp_size: 1
+#        ckpt_path: /workspace/ckpt/official_pretrains/other_home/videokl_ch16_long_20w.pt
+        ignore_keys: ['loss']
+
+        loss_config:
+          target: torch.nn.Identity
+
+        regularizer_config:
+          target: sgm.modules.autoencoding.regularizers.DiagonalGaussianRegularizer
+
+        encoder_config:
+          target: sgm.modules.cp_enc_dec.ContextParallelEncoder3D
+          params:
+            double_z: true
+            z_channels: 16
+            resolution: 256
+            in_channels: 3
+            out_ch: 3
+            ch: 128
+            ch_mult: [1, 2, 2, 4]
+            attn_resolutions: []
+            num_res_blocks: 3
+            dropout: 0.0
+            gather_norm: True
+
+        decoder_config:
+          target: sgm.modules.cp_enc_dec.ContextParallelDecoder3D
+          params:
+            double_z: True
+            z_channels: 16
+            resolution: 256
+            in_channels: 3
+            out_ch: 3
+            ch: 128
+            ch_mult: [1, 2, 2, 4]
+            attn_resolutions: []
+            num_res_blocks: 3
+            dropout: 0.0
+            gather_norm: True
+
+  loss_fn_config:
+    target: sgm.modules.diffusionmodules.loss.VideoDiffusionLossPnP
+    params:
+      offset_noise_level: 0
+      sigma_sampler_config:
+        target: sgm.modules.diffusionmodules.sigma_sampling.DiscreteSampling
+        params:
+          uniform_sampling: False
+          group_num: 40
+          num_idx: 1000
+          discretization_config:
+            target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
+            params:
+              shift_scale: 3.0
+
+  sampler_config:
+    target: sgm.modules.diffusionmodules.sampling.VideoDDIMSampler
+    params:
+      num_steps: 50
+      verbose: True
+
+      discretization_config:
+        target: sgm.modules.diffusionmodules.discretizer.ZeroSNRDDPMDiscretization
+        params:
+          shift_scale: 3.0
+
+      guider_config:
+        target: sgm.modules.diffusionmodules.guiders.VanillaCFG
+        params:
+          scale: 4.0

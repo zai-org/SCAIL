@@ -1,0 +1,202 @@
+args:
+  # add args here
+  # wandb_resume: true
+  lr_decay_style: constant
+  checkpoint_activations: True
+  model_parallel_size: 1
+  wandb: True
+  wandb_project_name: pretrain_image
+  experiment_name: pretrain-256-iv_bucket_test
+  mode: pretrain
+  no_load_rng: True
+
+  train_iters: 200000
+  eval_iters: 1
+  eval_interval: 1000
+  save: ckpts
+  save_interval: 2000
+  log_interval: 20
+  train_data: ["train_0"]
+  valid_data: ["valid_0"]
+  train_data_weights: [1]
+  split: 1,0,0
+  iterable_dataset: True
+  iterable_dataset_eval: True
+  num_workers: 8
+  sequence_parallel_size: 1
+  num_multi_query_heads: 8
+  force_train: True
+  save_at_start: False
+  empty_cache_interval: 500
+
+data:
+  target: data_video.IVBucketDataset
+  params:
+    batch_size: 4
+    eval_batch_size: 1
+    image_size_buckets: [[256, 384], [384, 256], [256, 256], [256, 455], [455, 256], [256, 341], [341, 256]]
+    frame_batch_buckets: [[49, 1], [41, 1], [33, 1], [25, 2], [17, 3], [9, 5], [1, 50]]
+    meta_names: ['caption', 'duration', 'fps', 'optical_flow_score', 'long_caption', 'long_captionv2', 'aesthetic_score', 'height', 'width']
+    skip_frms_num: 4
+    shuffle_buffer: 16
+    extra_texts:
+      - key: long_captionv2
+        prob: 0.95
+      - key: caption
+        prob: 0.05
+
+    dataset_configs:
+      - target: data_video.ImageWebDataset
+        params:
+          path: ";/workspace/data1/video_and_image_datas/clay1b_dataset/clay1b_tars/coyo_700m_merged_cleaned_wds,/workspace/data1/video_and_image_datas/clay1b_dataset/clay1b_tars/laion2ben_merged2_cleaned_wds"
+          meta_names: ['aesthetic_score_laion_v2', 'recaption_en', 'caption']
+          filters:
+            - key: aesthetic_score_laion_v2
+              val: 5.2
+              greater: True
+          extra_texts:
+            - key: recaption_en
+              prob: 0.95
+            - key: caption
+              prob: 0.05
+          interpolation: 3
+
+      - target: data_video.VideoWebDataset
+        params:
+          path: ";/workspace/data1/video_and_image_datas/processed_videos_wds_datas/webvid" # 1107160
+          modify_prompt: True
+          skip_frms_num: 8
+          fps: 8
+          filters:
+            - key: optical_flow_score
+              val: 3.0
+              greater: True
+            - key: aesthetic_score
+              val: 4.56
+              greater: True
+       
+      - target: data_video.VideoWebDataset
+        params:
+          path: ";/workspace/data1/video_and_image_datas/processed_videos_wds_datas/panda70m" # 12132306
+          modify_prompt: True
+          fps: 8
+          filters:
+            - key: optical_flow_score
+              val: 3.9
+              greater: True
+            - key: aesthetic_score
+              val: 4.56
+              greater: True
+
+      - target: data_video.VideoWebDataset
+        params:
+          path: ";/workspace/data1/video_and_image_datas/processed_videos_wds_datas/pdd_movie1k" # 854924
+          modify_prompt: True
+          fps: 8
+          filters:
+            - key: optical_flow_score
+              val: 3.0
+              greater: True
+            - key: aesthetic_score
+              val: 4.56
+              greater: True
+
+      - target: data_video.VideoWebDataset
+        params:
+          path: ";/workspace/data1/video_and_image_datas/processed_videos_wds_datas/Netflix" # 242209
+          modify_prompt: True
+          fps: 8
+          filters:
+            - key: optical_flow_score
+              val: 3.0
+              greater: True
+            - key: aesthetic_score
+              val: 4.56
+              greater: True
+
+      - target: data_video.VideoWebDataset
+        params:
+          path: ";/workspace/data1/video_and_image_datas/processed_videos_wds_datas/elements" # 1175286
+          modify_prompt: True
+          fps: 8
+          filters:
+            - key: optical_flow_score
+              val: 3.0
+              greater: True
+            - key: aesthetic_score
+              val: 4.56
+              greater: True
+       
+      - target: data_video.VideoWebDataset
+        params:
+          path: ";/workspace/data1/video_and_image_datas/processed_videos_wds_datas/pexels1k" # 224563
+          modify_prompt: True
+          fps: 8
+          filters:
+            - key: optical_flow_score
+              val: 1.0
+              greater: True
+            - key: aesthetic_score
+              val: 4.56
+              greater: True
+
+      - target: data_video.VideoWebDataset
+        params:
+          path: ";/workspace/data1/video_and_image_datas/processed_videos_wds_datas/pond5" # 10438118
+          modify_prompt: True
+          fps: 8
+          filters:
+            - key: optical_flow_score
+              val: 2.0
+              greater: True
+            - key: aesthetic_score
+              val: 4.0
+              greater: True
+
+      - target: data_video.VideoWebDataset
+        params:
+          path: ";/workspace/data1/video_and_image_datas/processed_videos_wds_datas/supplier" # 4224685
+          modify_prompt: True
+          fps: 8
+          filters:
+            - key: optical_flow_score
+              val: 3.0
+              greater: True
+            - key: aesthetic_score
+              val: 4.0
+              greater: True
+
+deepspeed:
+  train_micro_batch_size_per_gpu: 1
+  gradient_accumulation_steps: 1
+  steps_per_print: 50
+  gradient_clipping: 0.1
+  zero_optimization:
+    stage: 1
+    cpu_offload: false
+    contiguous_gradients: false
+    overlap_comm: true
+    reduce_scatter: true
+    reduce_bucket_size: 1000000000
+    allgather_bucket_size: 1000000000
+    load_from_fp32_weights: false
+  zero_allow_untested_optimizer: true
+  bf16:
+    enabled: True
+  fp16:
+    enabled: False
+    loss_scale: 0
+    loss_scale_window: 400
+    hysteresis: 2
+    min_loss_scale: 1
+  optimizer:
+    type: AdamW
+    params:
+      lr: 0.0001
+      betas: [0.9, 0.95]
+      eps: 1e-8
+      weight_decay: 1e-4
+  activation_checkpointing:
+    partition_activations: false
+    contiguous_memory_optimization: false
+  wall_clock_breakdown: false
