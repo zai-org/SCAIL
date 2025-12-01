@@ -1,0 +1,3 @@
+onnxruntime-gpu
+moviepy>=1.0.3
+taichi

@@ -167,7 +167,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_align', action='store_true', help='Whether to use 2D keypoints from reference image for alignment')
     parser.add_argument('--resolution', type=int, nargs=2, default=[512, 896], 
                         metavar=('HEIGHT', 'WIDTH'),
-                        help='Target resolution as [height, width], default: [512, 896]')
+                        help='Target resolution as [height, width], currently only [512, 896] are supported')
     args = parser.parse_args()
     
     subdir = args.subdir

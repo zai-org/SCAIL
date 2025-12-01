@@ -1,6 +1,8 @@
 pretrained_weights/
 *.pyc
+.vscode/
 vscode/
+.hypothesis
 hypothesis/
 __pycache__/
 logs/
