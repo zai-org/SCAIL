@@ -2,7 +2,7 @@ args:
   mode: inference
   i2v_encode_video: True
   latent_channels: 16
-  load: ckpts/SCAIL-Preview-1B
+  load: ckpts/SCAIL-Preview-14B
   batch_size: 1
   input_type: cli
   sampling_image_size: [512, 896]

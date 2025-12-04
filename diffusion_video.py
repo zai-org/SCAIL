@@ -276,48 +276,7 @@ class SATVideoDiffusionEngine(nn.Module):
     def shared_step(self, batch: Dict) -> Any:
         assert self.use_pose, "use_pose must be True when latent_input is True"
         if self.latent_input:
-            assert self.i2v_encode_video, "i2v_encode_video must be True when latent_input is True"
-            pose_latent, smpl_render, smpl_render_aug, ref_frame_latent, first_frame_latent, pixel_first_frame, x = self.get_input(batch)
-            pose_latent = pose_latent.permute(0, 2 ,1, 3, 4).contiguous()      # b c t h w -> b t c h w
-
-            if smpl_render is not None:
-                aug_prob = 0.6    # official: 0.8
-                for idx in range(smpl_render.shape[0]):
-                    if random.random() < aug_prob:
-                        smpl_render[idx] = smpl_render_aug[idx]
-                smpl_render = smpl_render.permute(0, 2, 1, 3, 4).contiguous()
-            x = x.permute(0, 2, 1, 3, 4).contiguous()
-            first_frame_latent = first_frame_latent.permute(0, 2, 1, 3, 4).contiguous()
-            ori_image = pixel_first_frame.permute(0, 2, 1, 3, 4).contiguous()    # B C 1 H W -> B 1 C H W
-            ref_frame_latent = ref_frame_latent.permute(0, 2, 1, 3, 4).contiguous()
-
-
-            null_pose = torch.load(f"/workspace/yanwenhao/cogvideo_vae_inference/zero_pose_latent_{pose_latent.shape[1]}_{pose_latent.shape[3]}_{pose_latent.shape[4]}.pt").to(self.device).to(self.dtype)
-            if smpl_render is not None:
-                null_smpl = torch.load(f"/workspace/yanwenhao/cogvideo_vae_inference/zero_pose_latent_{smpl_render.shape[1]}_{smpl_render.shape[3]}_{smpl_render.shape[4]}.pt").to(self.device).to(self.dtype)
-            latent_pose_to_concat = pose_latent.clone()
-            for idx in range(latent_pose_to_concat.shape[0]):
-                if random.random() < self.pose_dropout:
-                    latent_pose_to_concat[idx] = null_pose
-            batch["concat_pose"] = latent_pose_to_concat.to(self.dtype)
-
-            history_mask = torch.zeros_like(pose_latent[:, :, :4, :, :], dtype=torch.bool)   # b t 4 h w
-            history_random = random.random()
-            if history_random < 0.2:
-                history_mask[:, :2] = 1
-            elif history_random < 0.4:
-                history_mask[:, :1] = 1
-            batch["history_mask"] = history_mask.to(self.dtype)
-
-            if smpl_render is not None:
-                for idx in range(smpl_render.shape[0]):
-                    if random.random() < self.pose_dropout:   # 略少一点，控制信号强
-                        smpl_render[idx] = null_smpl
-                batch["concat_smpl_render"] = smpl_render.to(self.dtype)
-
-            batch["concat_images"] = first_frame_latent.to(self.dtype)
-            batch["ref_concat"] = ref_frame_latent.to(self.dtype)
-            # 这里如果要支持 ref_concat 需要改下 vae encode流程
+            raise NotImplementedError("latent_input not implemented in this version yet")
         else:
             pose, ref_pose, ref_normalized, x = self.get_input(batch)
             if self.noised_image_input:
@@ -409,7 +368,6 @@ class SATVideoDiffusionEngine(nn.Module):
         randn = torch.randn(batch_size, *shape).to(torch.float32).to(self.device)
         #debug !!!!!!!
         # breakpoint()
-        # randn = torch.load('/workspace/ckpt/tjy/glm-train-dev/noise.pt').to(self.device).permute(0, 2, 1, 3, 4).contiguous()
 
         if hasattr(self, "seeded_noise"):
             randn = self.seeded_noise(randn)

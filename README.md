@@ -7,15 +7,18 @@ Check our demo and gallery at [this link](https://teal024.github.io/SCAIL/), mor
 
 ## 📋 TODOs
 
-- [ ] **Inference Code for SAT**
-- [ ] **Config for Preview 1.3B SCAIL Model & Model Weights(512p)**
+- [x] **Inference Code for SAT**
+- [x] **Config for Preview 14B SCAIL Model & Model Weights(512p)**
 - [ ] **Config for Official 1.3B/14B Model & Model Weights(720p with history support)**
 - [ ] **Inference Code for Diffusers**
 
 ## 🚀 Getting Started
 ### Weights Download
 ### Environment Setup
-*Coming soon*
+Please make sure your Python version is between 3.10 and 3.12, inclusive of both 3.10 and 3.12.
+```
+pip install -r requirements.txt
+```
 
 ## 🦾 Usage
 ### Input preparation
@@ -52,6 +55,8 @@ bash scripts/sample_sgl_1Bsc_xc_cli.sh
 The CLI will ask you to input in format like `<prompt>@@<example_dir>, `e.g. `the girl is dancing@@examples/001`. The `example_dir` should contain rendered.mp4 or rendered_aligned.mp4 after pose extraction and rendering. Results will be save to `samples/`.
 
 You can further choose sampling configurations like resolution in the yaml file under `configs/sampling/` or directly modify `sample_video.py` for customized sampling logic.
+
+Though our model prioritize pose control and is robust to text prompts, we still suggest using VLMs like Gemini or GPT-4o to optimize the prompt especially on character features and gesture description. This is because the model is trained with long prompts and good prompts can improve generation quality. Example codes for prompt optimization will be provided soon.
 
 
 ## 📄 Citation
