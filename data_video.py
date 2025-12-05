@@ -1,26 +1,6 @@
-import io
-import re
-import os
-import sys
-import json
-import numpy as np
-from PIL import Image
-from functools import partial
-import math
-import tarfile
 from braceexpand import braceexpand
-import torch
-from torch import nn
-import torch.nn.functional as F
 from einops import rearrange
-
-import multiprocessing
 import torchvision.transforms as TT
-from torch.utils.data import default_collate
-
-from sat import mpu
-# from sat.data_utils.webds import MetaDistributedWebDataset
-from sgm.webds import MetaDistributedWebDataset
 import webdataset as wds
 from webdataset import ResampledShards, DataPipeline
 from webdataset.utils import pytorch_worker_seed
@@ -29,25 +9,12 @@ from webdataset.tariterators import url_opener, group_by_keys
 from webdataset.handlers import reraise_exception
 
 import random
-from fractions import Fraction
-from typing import Union, Optional, Dict, Any, Tuple
-from torch.utils.data import IterableDataset
-# from pytorchvideo.transforms.functional import uniform_temporal_subsample
-from torchvision.io.video import av
-import PIL
 import numpy as np
 import torch
-from torchvision.io import _video_opt
-from torchvision.io.video import _check_av_available, _read_from_stream, _align_audio_frames
-from torchvision.transforms import Compose
 from torchvision.transforms.functional import center_crop, resize
 from torchvision.transforms import InterpolationMode
-
-from sgm.util import instantiate_from_config
-from sat.helpers import print_rank0
 import decord
 from decord import VideoReader
-import imageio
 
 def rectangle_crop(arr, image_size, reshape_mode='center'):
     h, w = arr.shape[2], arr.shape[3]
