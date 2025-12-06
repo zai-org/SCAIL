@@ -1,8 +1,12 @@
-# Pose Extraction & Rendering Code for SCAIL: Towards Studio-Grade Character Animation via In-Context Learning of 3D-Consistent Pose Representations
+ <h1>Pose Extraction & Rendering Code for SCAIL: Towards Studio-Grade Character Animation via In-Context Learning of 3D-Consistent Pose Representations</h1>
 
-This repository contains the pose extraction & rendering code for **SCAIL (Studio-Grade Character Animation via
+This repository contains the 3D pose extraction & rendering code for **SCAIL (Studio-Grade Character Animation via
 In-Context Learning)**, a framework that enables high-fidelity character animation under diverse and challenging
 conditions, including large motion variations, stylized characters, and multi-character interactions.
+
+<p align="center">
+  <img src='resources/pose_teaser.png' alt='Teaser' width='90%'>
+</p>
 
 ## 📋 TODOs
 
@@ -14,7 +18,13 @@ conditions, including large motion variations, stylized characters, and multi-ch
 
 ## 🚀 Getting Started
 
-Change dir to this pose extraction & rendering folder if you are still in the main repo folder:
+Make sure you have already clone the main repo, this repo should be cloned under the main repo folder:
+```
+SCAIL/
+├── SCAIL-Pose
+```
+
+Change dir to this pose extraction & rendering folder:
 
 ```
 cd SCAIL-Pose/
@@ -75,3 +85,5 @@ Extraction & Rendering using 3D Retarget:
 ```
 python NLFPoseExtract/process_pose.py --subdir <path_to_the_example_pair> --use_align --resolution [512, 896]
 ```
+
+Note that the examples are in the main repo folder, you can also use your own images or videos. After the extraction and rendering, the results will be saved in the example folder and you can continue to use that folder to generate character animations in the main repo.
