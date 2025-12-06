@@ -4,21 +4,26 @@ This repository contains the 3D pose extraction & rendering code for **SCAIL (St
 In-Context Learning)**, a framework that enables high-fidelity character animation under diverse and challenging
 conditions, including large motion variations, stylized characters, and multi-character interactions.
 <p align="center">
-  <img src='resources/pose_teaser.png' alt='Teaser' width='95%'>
+  <img src="resources/pose_teaser.png" alt="teaser" width="90%">
 </p>
 
 
-## 📋 Methods
+## 📋 Methods and Functions
 
 When processing multi-person data, we segment each person, extract their poses, and then render them together to achieve multi-person pose extraction.
-<figure style="text-align:center;">
+<p align="center">
   <img src="resources/data.png" alt="data" width="90%">
-</figure>
+</p>
+
+Our multi-stage pose extraction pipeline provides robust estimations under multi-person interactions:
+<p align="center">
+  <img src='resources/pose_result.png' alt='Teaser' width='95%'>
+</p>
 
 By applying 3D pose instead of 2D key-point based methods, our model is able to recognize occlusion relationships and preserve motion characteristics during augmentation and retarget.
-<figure style="text-align:center;">
+<p align="center">
   <img src="resources/pose_comp.png" alt="comp" width="90%">
-</figure>
+</p>
 
 
 
