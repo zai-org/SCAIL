@@ -8,7 +8,7 @@ conditions, including large motion variations, stylized characters, and multi-ch
 </p>
 
 
-## 📋 Methods and Functions
+## 📋 Methods
 
 When processing multi-person data, we segment each person, extract their poses, and then render them together to achieve multi-person pose extraction.
 <p align="center">
