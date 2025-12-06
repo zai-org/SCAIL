@@ -3,10 +3,25 @@
 This repository contains the 3D pose extraction & rendering code for **SCAIL (Studio-Grade Character Animation via
 In-Context Learning)**, a framework that enables high-fidelity character animation under diverse and challenging
 conditions, including large motion variations, stylized characters, and multi-character interactions.
-
 <p align="center">
-  <img src='resources/pose_teaser.png' alt='Teaser' width='90%'>
+  <img src='resources/pose_teaser.png' alt='Teaser' width='95%'>
 </p>
+
+
+## 📋 Methods
+
+When processing multi-person data, we segment each person, extract their poses, and then render them together to achieve multi-person pose extraction.
+<figure style="text-align:center;">
+  <img src="resources/data.png" alt="data" width="90%">
+</figure>
+
+By applying 3D pose instead of 2D key-point based methods, our model is able to recognize occlusion relationships and preserve motion characteristics during augmentation and retarget.
+<figure style="text-align:center;">
+  <img src="resources/pose_comp.png" alt="comp" width="90%">
+</figure>
+
+
+
 
 ## 📋 TODOs
 
@@ -21,6 +36,10 @@ conditions, including large motion variations, stylized characters, and multi-ch
 Make sure you have already clone the main repo, this repo should be cloned under the main repo folder:
 ```
 SCAIL/
+├── examples
+├── sat
+├── configs
+├── ...
 ├── SCAIL-Pose
 ```
 
