@@ -86,10 +86,9 @@ pretrained_weights/
 
 ### Environment Setup
 
-We recommend using [openmmlab](https://github.com/open-mmlab) for the environment setup. 
-The following commands are used  to create a conda environment and install the required packages. You can refer to the official
-openmmlab [installation guide](https://mmpose.readthedocs.io/en/latest/installation.html) 
-and [taichi-lang](https://www.taichi-lang.org) for more details. or using like:
+We recommend using [mmpose](https://github.com/open-mmlab) for the environment setup. You can refer to the official
+mmpose [installation guide](https://mmpose.readthedocs.io/en/latest/installation.html). Note that the example in the guide uses python 3.8, however we recommend using python>=3.10 for compatibility with [SAMURAI](https://github.com/yangchris11/samurai).
+The following commands are used to install the required packages once you have setup the environment.
 
 ```shell
 conda activate openmmlab
