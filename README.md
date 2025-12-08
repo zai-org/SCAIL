@@ -54,9 +54,31 @@ Change dir to this pose extraction & rendering folder:
 cd SCAIL-Pose/
 ```
 
+### Environment Setup
+
+We recommend using [mmpose](https://github.com/open-mmlab) for the environment setup. You can refer to the official
+mmpose [installation guide](https://mmpose.readthedocs.io/en/latest/installation.html). Note that the example in the guide uses python 3.8, however we recommend using python>=3.10 for compatibility with [SAMURAI](https://github.com/yangchris11/samurai).
+The following commands are used to install the required packages once you have setup the environment.
+
+```shell
+conda activate openmmlab
+pip install -r requirements.txt
+git clone https://github.com/facebookresearch/sam2.git && cd sam2
+pip install -e .
+```
+
+
+
 ### Weights Download
 
-Download Pretrained Weights for pose extraction & rendering. The script below
+First, download SAM2 weights for segmentation. Make sure you are in the `sam2` folder, then run the following commands:
+```
+cd checkpoints && \
+./download_ckpts.sh && \
+cd ..
+```
+
+Then download pretrained weights for pose extraction & rendering. The script below
 downloads [NLFPose](https://github.com/isarandi/nlf) (torchscript), [DWPose](https://github.com/IDEA-Research/DWPose) (
 onnx) and [YOLOX](https://github.com/Megvii-BaseDetection/YOLOX) (onnx) weights. You can also download the weights
 manually and put them into the `pretrained_weights` folder.
@@ -84,16 +106,6 @@ pretrained_weights/
     └── yolox_l.onnx
 ```
 
-### Environment Setup
-
-We recommend using [mmpose](https://github.com/open-mmlab) for the environment setup. You can refer to the official
-mmpose [installation guide](https://mmpose.readthedocs.io/en/latest/installation.html). Note that the example in the guide uses python 3.8, however we recommend using python>=3.10 for compatibility with [SAMURAI](https://github.com/yangchris11/samurai).
-The following commands are used to install the required packages once you have setup the environment.
-
-```shell
-conda activate openmmlab
-pip install -r requirements.txt
-```
 
 ## 🦾 Usage
 
@@ -110,3 +122,16 @@ python NLFPoseExtract/process_pose.py --subdir <path_to_the_example_pair> --use_
 ```
 
 Note that the examples are in the main repo folder, you can also use your own images or videos. After the extraction and rendering, the results will be saved in the example folder and you can continue to use that folder to generate character animations in the main repo.
+
+## 📄 Citation
+
+If you find this work useful in your research, please cite:
+
+```bibtex
+@article{yan2025scail,
+  title={SCAIL: Towards Studio-Grade Character Animation via In-Context Learning of 3D-Consistent Pose Representations},
+  author={Yan, Wenhao and Ye, Sheng and Yang, Zhuoyi and Teng, Jiayan and Dong, ZhenHui and Wen, Kairui and Gu, Xiaotao and Liu, Yong-Jin and Tang, Jie},
+  journal={arXiv preprint arXiv:2512.05905},
+  year={2025}
+}
+```
