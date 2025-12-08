@@ -9,8 +9,6 @@ from pose_draw.draw_pose_utils import draw_pose_to_canvas_np, scale_image_hw_kee
 import torch.multiprocessing as mp
 import os
 os.environ['PYOPENGL_PLATFORM'] = 'osmesa'
-import pyrender
-import trimesh
 import copy
 import random
 import torch

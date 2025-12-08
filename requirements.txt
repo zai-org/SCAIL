@@ -14,3 +14,9 @@ lmdb
 pandas
 scipy
 loguru
+moviepy
+decord
+controlnet_aux
+webdataset
+jsonlines
+av
