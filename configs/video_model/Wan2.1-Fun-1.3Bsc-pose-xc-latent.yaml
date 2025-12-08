@@ -85,19 +85,19 @@ model:
             legacy_ucg_val: ""
             target: sgm.modules.encoders.umt5.T5EncoderModel
             params:
-              checkpoint_path: ckpt/umt5-xxl/models_t5_umt5-xxl-enc-bf16.pth
-              tokenizer_path: ckpt/umt5-xxl
+              checkpoint_path: SCAIL-Preview/umt5-xxl/models_t5_umt5-xxl-enc-bf16.pth
+              tokenizer_path: SCAIL-Preview/umt5-xxl
               max_length: 512
 
   i2v_clip_config:
     target: sgm.modules.encoders.clip.CLIPModel
     params:
-      checkpoint_path: ckpt/models_clip_open-clip-xlm-roberta-large-vit-huge-14-onlyvisual.pth
+      checkpoint_path: SCAIL-Preview/models_clip_open-clip-xlm-roberta-large-vit-huge-14-onlyvisual.pth
 
   first_stage_config:
     target : sgm.models.wan_vae.WanVAE
     params:
-      vae_pth: ckpt/Wan2.1_VAE.pth
+      vae_pth: SCAIL-Preview/Wan2.1_VAE.pth
       dtype: torch.bfloat16
 
   loss_fn_config:

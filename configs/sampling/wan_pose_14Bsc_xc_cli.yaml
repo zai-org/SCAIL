@@ -2,7 +2,7 @@ args:
   mode: inference
   i2v_encode_video: True
   latent_channels: 16
-  load: "/opensource/SCAIL-Preview/mp_rank_00_model_states.pt"
+  load: SCAIL-Preview/model
   batch_size: 1
   input_type: cli
   sampling_image_size: [512, 896]

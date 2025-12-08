@@ -3,7 +3,7 @@
 
  <div align="center">
   <a href='https://arxiv.org/abs/2512.05905'><img src='https://img.shields.io/badge/📖 arXiv-2512.05905-red'></a>
-  <a href='huggingface'><img src='https://img.shields.io/badge/🤗 huggingface-coming%20soon-yellow'></a>
+  <a href='https://huggingface.co/zai-org/SCAIL-Preview/tree/main'><img src='https://img.shields.io/badge/🤗 huggingface-SCAIL Preview-yellow'></a>
   <a href='https://teal024.github.io/SCAIL/'><img src='https://img.shields.io/badge/🌐 Project Page-green'></a>
 </div>
 
@@ -29,7 +29,34 @@ Check our model architecture design, our video demo, as well as more comparisons
 - [ ] **Multi-GPU Inference**
 
 ## 🚀 Getting Started
-### Weights Download
+### Checkpoints Download
+
+<!-- **Note:** Due to double-blind review requirements, we do not provide the checkpoint download link here.  -->
+
+| ckpts       | Download Link                                                                                                                                           |    Notes                      |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
+| SCAIL-Preview(14B) | 🤗 [Huggingface](https://huggingface.co/zai-org/SCAIL-Preview/tree/main)   | Supports  512P
+
+Use the following commands to download the model weights
+(We have integrated both Wan VAE and T5 modules into this checkpoint for convenience).
+
+```bash
+# Download the repository (skip automatic LFS file downloads)
+GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/zai-org/SCAIL-Preview
+```
+The files should be organized like:
+```
+SCAIL-Preview/
+├── Wan2.1_VAE.pth
+├── model
+│   ├── 1
+│   │   └── mp_rank_00_model_states.pt
+│   └── latest
+└── umt5-xxl
+    ├── ...
+```
+
+
 ### Environment Setup
 Please make sure your Python version is between 3.10 and 3.12, inclusive of both 3.10 and 3.12.
 ```
