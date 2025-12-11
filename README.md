@@ -3,7 +3,8 @@
 
  <div align="center">
   <a href='https://arxiv.org/abs/2512.05905'><img src='https://img.shields.io/badge/📖 arXiv-2512.05905-red'></a>
-  <a href='https://huggingface.co/zai-org/SCAIL-Preview/tree/main'><img src='https://img.shields.io/badge/🤗 huggingface-Coming Soon-yellow'></a>
+  <a href='https://huggingface.co/zai-org/SCAIL-Preview/tree/main'><img src='https://img.shields.io/badge/🤗 HuggingFace-yellow'></a>
+  <a href='https://modelscope.cn/models/ZhipuAI/SCAIL-Preview'><img src='https://img.shields.io/badge/🤖 ModelScope-blue'></a>
   <a href='https://teal024.github.io/SCAIL/'><img src='https://img.shields.io/badge/🌐 Project Page-green'></a>
 </div>
 
@@ -24,10 +25,10 @@ Check our model architecture design, our video demo, as well as more comparisons
 
 
 ## 📋 TODOs
-- [ ] **Config for Preview 14B SCAIL Model & Model Weights(512p)**
+- [x] **Config for Preview 14B SCAIL Model & Model Weights(512p, 5s)**
 - [ ] **Prompt Optimization Snippets**
 - [ ] **Multi-GPU Inference**
-- [ ] **Config for Official 1.3B/14B Model & Model Weights(736p with history support)**
+- [ ] **Config for Official 1.3B/14B Model & Model Weights(Improve Stability and Clarity, Long Video Generation Capability)**
 - [ ] **Inference Code for Diffusers**
 
 ## 🚀 Getting Started
