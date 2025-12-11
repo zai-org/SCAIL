@@ -21,11 +21,12 @@ This repository contains the official implementation code for **SCAIL (Studio-Gr
 Check our model architecture design, our video demo, as well as more comparisons against other baselines at [this link](https://teal024.github.io/SCAIL/), more creative examples will be added to the gallery soon.
 
 ## 🗞️ Update and News
-* 2025.12.08: 🔥 We release the inference code of SCAIL.
+* 2025.12.08: 🔥 We release the inference code of SCAIL on [SAT](https://github.com/THUDM/SwissArmyTransformer).
+* 2025.12.11: 👀 We’ve added more interesting cases to our gallery on [project page](https://teal024.github.io/SCAIL/)—check it out! 
 
 
 ## 📋 TODOs
-- [x] **Config for Preview 14B SCAIL Model & Model Weights(512p, 5s)**
+- [-] **Config for Preview 14B SCAIL Model & Model Weights(512p, 5s)**
 - [ ] **Prompt Optimization Snippets**
 - [ ] **Multi-GPU Inference**
 - [ ] **Config for Official 1.3B/14B Model & Model Weights(Improve Stability and Clarity, Long Video Generation Capability)**
@@ -100,7 +101,7 @@ bash scripts/sample_sgl_1Bsc_xc_cli.sh
 
 The CLI will ask you to input in format like `<prompt>@@<example_dir>`, e.g. `the girl is dancing@@examples/001`. The `example_dir` should contain rendered.mp4 or rendered_aligned.mp4 after pose extraction and rendering. Results will be save to `samples/`.
 
-Note that our model is trained with **long detailed prompts**, even though a short or even null prompt can be used, the result may not be as good as the long prompt. We will provide our prompt generation snippets, using Google [Gemini](https://deepmind.google/models/gemini/) to read from the reference image and the driving motion and generate a detailed prompt.
+Note that our model is trained with **long detailed prompts**, even though a short or even null prompt can be used, the result may not be as good as the long prompt. We will provide our prompt generation snippets, using Google [Gemini](https://deepmind.google/models/gemini/) to read from the reference image and the driving motion and generate a detailed prompt like `A woman with curly hair is joyfully dancing along a rocky shoreline, wearing a sleek blue two-piece outfit. She performs various dance moves, including twirling, raising her hands, and embracing the lively seaside atmosphere, her tattoos and confident demeanor adding to her dynamic presence.` 
 
 You can further choose sampling configurations like resolution in the yaml file under `configs/sampling/` or directly modify `sample_video.py` for customized sampling logic.
 
