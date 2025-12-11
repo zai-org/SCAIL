@@ -37,7 +37,7 @@ Check our model architecture design, our video demo, as well as more comparisons
 
 | ckpts       | Download Link                                                                                                                                           |    Notes                      |
 |--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| SCAIL-Preview(14B) | 🤗 [Coming Soon](https://huggingface.co/zai-org/SCAIL-Preview/tree/main)   | Supports  512P
+| SCAIL-Preview(14B) | [🤗 Hugging Face](https://huggingface.co/zai-org/SCAIL-Preview)<br> [🤖 ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview)     | Supports  512P
 
 Use the following commands to download the model weights
 (We have integrated both Wan VAE and T5 modules into this checkpoint for convenience).
