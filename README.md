@@ -18,19 +18,24 @@ This repository contains the official implementation code for **SCAIL (Studio-Gr
 </p>
 
 ## 🔎 Motivation and Results
-SCAIL identifies the key bottlenecks that hinder character animation towards production level: limited generalization towards characters and incoherent motion under complex scenarios. For example, a long-standing challenge in this field is to handle complex multi-character interactions. SCAIL revisits the core components of character animation - how to represent the pose representation and how to inject the pose, resolves the challenge that pose representations cannot simultaneously prevent identity leakage and preserve rich motion information, and compels the model to perform spatiotemporal reasoning over the entire motion sequence for more natural and coherent movements. Check our methods, results gallery, as well as comparisons against other baselines at our [project page](https://teal024.github.io/SCAIL/).
+SCAIL identifies the key bottlenecks that hinder character animation towards production level: limited generalization towards characters and incoherent motion under complex scenarios (e.g., the long-standing challenge of multi-character interactions, as well as common failures in basic motions like flipping and turning). We revisit the core components of character animation -- how to represent the pose representation and how to inject the pose. Our framework resolves the challenge that pose representations cannot simultaneously prevent identity leakage and preserve rich motion information, and compels the model to perform spatiotemporal reasoning over the entire motion sequence for more natural and coherent movements. Check our methods, results gallery, as well as comparisons against other baselines at our [project page](https://teal024.github.io/SCAIL/).
+
+<p align="center">
+  <img src='resources/1.gif' width='66%'>
+  <img src='resources/2.gif' width='66%'>
+  <img src='resources/3.gif' width='66%'>
+</p>
 
 ## 🗞️ Update and News
 * 2025.12.08: 🔥 We release the inference code of SCAIL on [SAT](https://github.com/THUDM/SwissArmyTransformer).
-* 2025.12.11: 👀 We’ve added more interesting cases to our gallery on [project page](https://teal024.github.io/SCAIL/)—Check it out! 
-* 2025.12.11: 💥 SCAIL is now officially opensourced on [HuggingFace](https://huggingface.co/zai-org/SCAIL-Preview) and [ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview)! 
-* 2025.12.11: 🎉 For [Z.ai](https://z.ai)’s open source week, the opensourced SCAIL-14B-Preview model is used to create a [closing video](https://www.bilibili.com/video/BV1xMmEB2Eie) for celebrating the week’s outcomes.
+* 2025.12.11: 👀 We’ve added more interesting cases to our gallery on [project page](https://teal024.github.io/SCAIL/)! Check it out! 
+* 2025.12.11: 💥 SCAIL is now officially opensourced on [HuggingFace](https://huggingface.co/zai-org/SCAIL-Preview) and [ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview)!!
 
 
 ## 📋 TODOs
 - [x] **SCAIL-14B-Preview Model Weights**(512p, 5s) and Inference Config
 - [ ] Prompt Optimization Snippets
-- [ ] New Branch for **Implementation on Wan Official Framework** and **ComfyUI support**
+- [ ] New Branch for **Implementation on Wan Official Framework** and **ComfyUI Support**
 - [ ] **SCAIL-Official(1.3B/14B) Model Weights**(Improved Stability and Clarity, Long Video Generation Capability) and Inference Config
 
 ## 🚀 Getting Started
@@ -106,6 +111,8 @@ Note that our model is trained with **long detailed prompts**, even though a sho
 
 You can further choose sampling configurations like resolution in the yaml file under `configs/sampling/` or directly modify `sample_video.py` for customized sampling logic.
 
+## ✨ Acknowledgements
+Our implementation is built upon the foundation of [Wan 2.1](https://github.com/Wan-Video/Wan2.1) and the overall project architecture is built using [SAT](https://github.com/THUDM/SwissArmyTransformer). We utilized [NLFPose](https://github.com/isarandi/nlf) for reliable pose extraction. Thanks for their remarkable contribution and released code.
 
 ## 📄 Citation
 
