@@ -9,18 +9,19 @@ conditions, including large motion variations, stylized characters, and multi-ch
 
 
 ## 📋 Methods
+We connect estimated 3D human keypoints according to skeletal topology and represent bones as spatial cylinders. The resulting 3D skeleton is rasterized to obtain 2D motion guidance signals.
 
 When processing multi-character data, we segment each character, extract their poses, and then render them together to achieve multi-character pose extraction.
 <p align="center">
   <img src="resources/data.png" alt="data" width="90%">
 </p>
 
-Our multi-stage pose extraction pipeline provides robust estimations under multi-character interactions:
+Our multi-stage pose extraction pipeline provides robust estimations under multi-character interactions, benefiting from NLFPose’s reliable depth estimation:
 <p align="center">
   <img src='resources/pose_result.png' alt='Teaser' width='95%'>
 </p>
 
-Utilizing such representation, our framework resolves the challenge that pose representations cannot simultaneously prevent identity leakage and preserve rich motion information.
+Utilizing such representation, our framework further resolves the challenge that pose representations cannot simultaneously prevent identity leakage and preserve rich motion information.
 <p align="center">
   <img src="resources/pose_comp.png" alt="comp" width="90%">
 </p>
