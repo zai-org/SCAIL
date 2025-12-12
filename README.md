@@ -16,7 +16,7 @@ When processing multi-character data, we segment each character, extract their p
   <img src="resources/data.png" alt="data" width="90%">
 </p>
 
-Our multi-stage pose extraction pipeline provides robust estimations under multi-character interactions, benefiting from NLFPose’s reliable depth estimation:
+Our multi-stage pose extraction pipeline provides robust estimations under multi-character interactions, benefiting from [NLFPose](https://github.com/isarandi/nlf)’s reliable depth estimation:
 <p align="center">
   <img src='resources/pose_result.png' alt='Teaser' width='95%'>
 </p>
