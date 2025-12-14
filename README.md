@@ -30,12 +30,16 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 * 2025.12.08: 🔥 We release the inference code of SCAIL on [SAT](https://github.com/THUDM/SwissArmyTransformer).
 * 2025.12.11: 👀 We’ve added more interesting cases to our gallery on [project page](https://teal024.github.io/SCAIL/)! Check it out! 
 * 2025.12.11: 💥 SCAIL is now officially opensourced on [HuggingFace](https://huggingface.co/zai-org/SCAIL-Preview) and [ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview)!!
+* 2025.12.14: ❤️ Huge thanks to KJ for the work done on adaptation — he moved faster than our own adaptation process, and ComfyUI support now seems just around the corner.
+* 2025.12.14: 🥳 Thanks as well to friends in the community for testing the work!
+Note that in SCAIL’s training samples, only 1.5% are anime data, and we did not use any multi-person anime data at all. Nevertheless, we were surprised to find that, the model is able to handle many complex anime characters and can even perform multi-character anime interactions.
+The release of SCAIL-Preview is intended to demonstrate the soundness of our proposed pose representation and model architecture, and it will be further improved in the future.
+
 
 
 ## 📋 TODOs
 - [x] **SCAIL-14B-Preview Model Weights**(512p, 5s) and Inference Config
 - [ ] Prompt Optimization Snippets
-- [ ] New Branch for **Implementation on Wan Official Framework** and **ComfyUI Support**
 - [ ] **SCAIL-Official(1.3B/14B) Model Weights**(Improved Stability and Clarity, Long Video Generation Capability) and Inference Config
 
 ## 🚀 Getting Started
