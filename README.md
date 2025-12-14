@@ -30,7 +30,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 * 2025.12.08: 🔥 We release the inference code of SCAIL on [SAT](https://github.com/THUDM/SwissArmyTransformer).
 * 2025.12.11: 👀 We’ve added more interesting cases to our gallery on [project page](https://teal024.github.io/SCAIL/)! Check it out! 
 * 2025.12.11: 💥 SCAIL is now officially opensourced on [HuggingFace](https://huggingface.co/zai-org/SCAIL-Preview) and [ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview)!!
-* 2025.12.14: ❤️ Huge thanks to KJ for the work done on adaptation — he moved faster than our own adaptation process, and ComfyUI support now seems just around the corner.
+* 2025.12.14: ❤️ Huge thanks to KJ for the work done on adaptation — he moved faster than our own adaptation process, and ComfyUI support for the model itself now seems just around the corner. However, the pose extraction & rendering has not being fully adapted to ComfyUI yet, and we recommand direct using [SCAIL_Pose](https://github.com/teal024/SCAIL-Pose) to extract the pose and using the generated pose in ComfyUI for a temporary solution.
 * 2025.12.14: 🥳 Thanks as well to friends in the community for testing the work!
 Despite the fact that only 1.5% of SCAIL’s training samples are anime data, and that we did not intentionally collect any multi-character anime data, we were surprised to see that the model can already handle many complex anime characters and even support multi-character anime interactions.
 The release of SCAIL-Preview is intended to demonstrate the soundness of our proposed pose representation and model architecture, with clear potential for further scaling and enhancement.
@@ -40,7 +40,7 @@ The release of SCAIL-Preview is intended to demonstrate the soundness of our pro
 ## 📋 TODOs
 - [x] **SCAIL-14B-Preview Model Weights**(512p, 5s) and Inference Config
 - [ ] Prompt Optimization Snippets
-- [ ] **SCAIL-Official(1.3B/14B) Model Weights**(Improved Stability and Clarity, Long Video Generation Capability) and Inference Config
+- [ ] **SCAIL-Official(1.3B/14B) Model Weights**(Improved Stability and Clarity, Innate Long Video Generation Capability) and Inference Config
 
 ## 🚀 Getting Started
 ### Checkpoints Download
@@ -131,5 +131,5 @@ If you find this work useful in your research, please cite:
 }
 ```
 
-## 🔑 License
+## 🗝️ License
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details
