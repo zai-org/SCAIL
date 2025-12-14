@@ -32,8 +32,8 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 * 2025.12.11: 💥 SCAIL is now officially opensourced on [HuggingFace](https://huggingface.co/zai-org/SCAIL-Preview) and [ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview)!!
 * 2025.12.14: ❤️ Huge thanks to KJ for the work done on adaptation — he moved faster than our own adaptation process, and ComfyUI support now seems just around the corner.
 * 2025.12.14: 🥳 Thanks as well to friends in the community for testing the work!
-Note that in SCAIL’s training samples, only 1.5% are anime data, and we did not use any multi-person anime data at all. Nevertheless, we were surprised to find that, the model is able to handle many complex anime characters and can even perform multi-character anime interactions.
-The release of SCAIL-Preview is intended to demonstrate the soundness of our proposed pose representation and model architecture, and it will be further improved in the future.
+Despite the fact that only 1.5% of SCAIL’s training samples are anime data, and that we did not intentionally collect any multi-character anime data, we were surprised to see that the model can already handle many complex anime characters and even support multi-character anime interactions.
+The release of SCAIL-Preview is intended to demonstrate the soundness of our proposed pose representation and model architecture, with clear potential for further scaling and enhancement.
 
 
 
