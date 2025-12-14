@@ -130,3 +130,6 @@ If you find this work useful in your research, please cite:
   year={2025}
 }
 ```
+
+## 🔑 License
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details
