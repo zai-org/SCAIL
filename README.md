@@ -33,7 +33,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 * 2025.12.14: 🥳 Thanks as well to friends in the community for testing the work!
 Despite the fact that only 1.5% of SCAIL’s training samples are anime data, and that we did not intentionally collect any multi-character anime data, we were surprised to see that the model can already handle many complex anime characters and even support multi-character anime interactions.
 The release of SCAIL-Preview is intended to demonstrate the soundness of our proposed pose representation and model architecture, with clear potential for further scaling and enhancement.
-* 2025.12.16: ❤️ Huge thanks to KJ for the work done on adaptation — SCAIL is officially available in ComfyUI, check [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper)!!! Meanwhile, the pose extraction & rendering has also been partly adapted to ComfyUI in [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose), currently without multi-character tracking and multi-character facial keypoints.
+* 2025.12.16: ❤️ Huge thanks to KJ for the work done on adaptation — SCAIL is now available in [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper)!!! Meanwhile, the pose extraction & rendering has also been partly adapted to ComfyUI in [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose), currently without multi-character tracking and multi-character facial keypoints.
 
 
 
