@@ -34,6 +34,12 @@ Utilizing such representation, our framework further resolves the challenge that
   <img src="resources/pose_comp.png" alt="comp" width="90%">
 </p>
 
+## 🗞️ Update and News
+* 2025.12.16: ❤️ Huge thanks to KJ for the work done on adaptation — the pose extraction & rendering has also been partly adapted to ComfyUI in [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose)!! We are looking forward for the ComfyUI support of multi-character tracking to avoid character color exchange and the support of multi-character facial keypoints.
+* 2025.12.16: ❕NOTE that our code should able to support as many characters as the segmentation node can handle, by default we use 2, but you can use more if you want. We recommend to use different colors for overlapping characters to alleviate ID exchange.
+
+
+
 
 
 
@@ -45,7 +51,6 @@ Utilizing such representation, our framework further resolves the challenge that
 
 - [x] **Inference Code for Multi-Human Pose Extraction & Rendering**
 
-- [ ] **Further Support of SAM3 & SAM3D**
 
 ## 🚀 Getting Started
 
