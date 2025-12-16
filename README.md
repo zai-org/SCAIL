@@ -1,8 +1,16 @@
  <h1>Pose Extraction & Rendering Code for SCAIL: Towards Studio-Grade Character Animation via In-Context Learning of 3D-Consistent Pose Representations</h1>
+  <div align="center">
+  <a href='https://arxiv.org/abs/2512.05905'><img src='https://img.shields.io/badge/📖 arXiv-2512.05905-red'></a>
+  <a href='https://teal024.github.io/SCAIL/'><img src='https://img.shields.io/badge/🌐 Project Page-green'></a>
+  <a href="https://github.com/zai-org/SCAIL">
+    <img src="https://img.shields.io/badge/%20Main GitHub Repo-181717?logo=github">
+  </a>
+</div>
+
 
 This repository contains the 3D pose extraction & rendering code for **SCAIL (Studio-Grade Character Animation via
 In-Context Learning)**, a framework that enables high-fidelity character animation under diverse and challenging
-conditions, including large motion variations, stylized characters, and multi-character interactions.
+conditions, including large motion variations, stylized characters, and multi-character interactions. The main repo is at [zai-org/SCAIL](https://github.com/zai-org/SCAIL).
 <p align="center">
   <img src="resources/pose_teaser.png" alt="teaser" width="90%">
 </p>
