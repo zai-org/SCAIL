@@ -39,7 +39,7 @@ The release of SCAIL-Preview is intended to demonstrate the soundness of our pro
 
 ## 📋 TODOs
 - [x] **SCAIL-14B-Preview Model Weights**(512p, 5s) and Inference Config
-- [ ] Prompt Optimization Snippets
+- [x] Prompt Optimization Snippets
 - [ ] **SCAIL-Official(1.3B/14B) Model Weights**(Improved Stability and Clarity, Innate Long Video Generation Capability) and Inference Config
 
 ## 🚀 Getting Started
