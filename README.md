@@ -30,10 +30,11 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 * 2025.12.08: 🔥 We release the inference code of SCAIL on [SAT](https://github.com/THUDM/SwissArmyTransformer).
 * 2025.12.11: 👀 We’ve added more interesting cases to our gallery on [project page](https://teal024.github.io/SCAIL/)! Check it out! 
 * 2025.12.11: 💥 SCAIL is now officially opensourced on [HuggingFace](https://huggingface.co/zai-org/SCAIL-Preview) and [ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview)!!
-* 2025.12.14: 🥳 Thanks as well to friends in the community for testing the work!
+* 2025.12.14: 🥳 Thanks to friends in the community for testing the work!
 Despite the fact that only 1.5% of SCAIL’s training samples are anime data, and that we did not intentionally collect any multi-character anime data, we were surprised to see that the model can already handle many complex anime characters and even support multi-character anime interactions.
 The release of SCAIL-Preview is intended to demonstrate the soundness of our proposed pose representation and model architecture, with clear potential for further scaling and enhancement.
 * 2025.12.16: ❤️ Huge thanks to KJ for the work done on adaptation — SCAIL is now available in [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper)!!! Meanwhile, the pose extraction & rendering has also been partly adapted to ComfyUI in [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose), currently without multi-character tracking and multi-character facial keypoints.
+* 2025.12.17: ❤️ Thanks to [VantageWithAI](https://hf-mirror.com/vantagewithai), GGUF version is now available at [SCAIL-Preview-GGUF](https://hf-mirror.com/vantagewithai/SCAIL-Preview-GGUF/tree/main)!
 
 
 
