@@ -2,19 +2,7 @@
 
 ## 🚀 Getting Started
 
-Use git submodule to download the `scail_pose` module:
-```
-git submodule update --init --recursive
-```
-After that, the project structure should be like this:
-```
-SCAIL/
-├── examples
-├── sat
-├── configs
-├── ...
-├── scail_pose
-```
+
 
 Change dir to this pose extraction & rendering folder:
 

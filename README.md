@@ -26,20 +26,29 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 </p>
 
 ## 🌱 Community Works
-Huge thanks to friends in the community for testing the work! We were surprised to see that the model can already handle many complex anime characters and even support multi-character anime interactions. All generated results are borrowed with their consents.
+Huge thanks to friends in the community for testing the work! We were surprised to see that the model can already handle many complex anime characters and even support multi-character anime interactions. All results are shared with their gracious consent.
 
-<table align="center">
+<table align="center" border="0" cellspacing="0" cellpadding="0">
   <tr>
-    <td align="center" style="padding: 4px;">
-      <img src="resources/community1.gif" width="180">
+    <td valign="middle" style="padding-right: 4px;">
+      <table align="center" border="0" cellspacing="0" cellpadding="0">
+        <tr>
+          <td align="center" style="padding: 4px;">
+            <img src="resources/community1.gif" width="220">
+          </td>
+          <td align="center" style="padding: 4px;">
+            <img src="resources/community2.gif" width="220">
+          </td>
+        </tr>
+        <tr>
+          <td align="center" colspan="2" style="padding: 4px;">
+            <img src="resources/community3.gif" width="400">
+          </td>
+        </tr>
+      </table>
     </td>
-    <td align="center" style="padding: 4px;">
-      <img src="resources/community2.gif" width="220">
-    </td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2">
-      <img src="resources/community3.gif" width="400">
+    <td valign="middle" style="padding: 4px;">
+      <img src="resources/community4.gif" width="150">
     </td>
   </tr>
 </table>
@@ -47,7 +56,7 @@ Huge thanks to friends in the community for testing the work! We were surprised 
 
 
 ## 🗞️ Update and News
-* 2025.12.18: 📣 The [SCAIL-Pose](https://github.com/zai-org/SCAIL-Pose) is now merged into the main repo. The original repo will be turned into a submodule. This will help us provide training scripts for the better reproducibility.
+* 2025.12.18: 📣 The [SCAIL-Pose](https://github.com/zai-org/SCAIL-Pose) is now merged into the main repo. The original scail_pose repo will be turned into a submodule.
 * 2025.12.17: ❤️ Thanks to [VantageWithAI](https://hf-mirror.com/vantagewithai), GGUF version is now available at [SCAIL-Preview-GGUF](https://hf-mirror.com/vantagewithai/SCAIL-Preview-GGUF/tree/main)!
 * 2025.12.16: ❤️ Huge thanks to KJ for the work done on adaptation — SCAIL is now available in [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper)!!! Meanwhile, the pose extraction & rendering has also been partly adapted to ComfyUI in [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose), currently without multi-character tracking and multi-character facial keypoints.
 * 2025.12.14: 🥳 Thanks to friends in the community for testing the work!
@@ -116,10 +125,24 @@ examples/
 ...
 ```
 ### Pose Extraction & Rendering
-Change dir into `scail_pose` folder and follow the [POSE_INSTRUCTION.md](POSE_INSTRUCTION.md) to extract and render the pose from the driving video.
+Use git submodule to download the `scail_pose` module and then follow the [POSE_INSTRUCTION.md](POSE_INSTRUCTION.md) to extract and render the pose from the driving video. 
+
 ```shell
-cd SCAIL-Pose
-# follow instructions in the subdir
+git submodule update --init --recursive
+```
+After that, the project structure should be like this:
+```
+SCAIL/
+├── examples
+├── sat
+├── configs
+├── ...
+├── scail_pose
+```
+Change dir into the subdir and follow instructions:
+```shell
+cd scail_pose
+# follow instructions in POSE_INSTRUCTION.md
 ```
 After pose extraction and rendering, the input data should be organized as follows:
 ```
