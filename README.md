@@ -1,4 +1,4 @@
- <h1><img src="./resources/scail.png" alt="SCAIL" style="height: 1.2em; vertical-align: middle; margin-right: 0.2em;">: Towards Studio-Grade Character Animation via In-Context Learning of 3D-Consistent Pose Representations</h1>
+ <h1>SCAIL: Towards Studio-Grade Character Animation via In-Context Learning of 3D-Consistent Pose Representations</h1>
 
 
  <div align="center">
@@ -19,12 +19,16 @@ This repository contains the official implementation code for **SCAIL (Studio-Gr
 
 ## 🔎 Motivation and Results
 SCAIL identifies the key bottlenecks that hinder character animation towards production level: limited generalization towards characters and incoherent motion under complex scenarios (e.g., the long-standing challenge of multi-character interactions, as well as common failures in basic motions like flipping and turning). We revisit the core components of character animation -- how to represent the pose representation and how to inject the pose. Our framework resolves the challenge that pose representations cannot simultaneously prevent identity leakage and preserve rich motion information, and compels the model to perform spatiotemporal reasoning over the entire motion sequence for more natural and coherent movements. Check our methods, results gallery, as well as comparisons against other baselines at our [project page](https://teal024.github.io/SCAIL/).
-
 <p align="center">
   <img src='resources/1.gif' width='66%'>
   <img src='resources/2.gif' width='66%'>
   <img src='resources/3.gif' width='66%'>
 </p>
+
+## 🌱 Community Works
+
+
+
 
 ## 🗞️ Update and News
 * 2025.12.08: 🔥 We release the inference code of SCAIL on [SAT](https://github.com/THUDM/SwissArmyTransformer).
@@ -35,6 +39,7 @@ Despite the fact that only 1.5% of SCAIL’s training samples are anime data, an
 The release of SCAIL-Preview is intended to demonstrate the soundness of our proposed pose representation and model architecture, with clear potential for further scaling and enhancement.
 * 2025.12.16: ❤️ Huge thanks to KJ for the work done on adaptation — SCAIL is now available in [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper)!!! Meanwhile, the pose extraction & rendering has also been partly adapted to ComfyUI in [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose), currently without multi-character tracking and multi-character facial keypoints.
 * 2025.12.17: ❤️ Thanks to [VantageWithAI](https://hf-mirror.com/vantagewithai), GGUF version is now available at [SCAIL-Preview-GGUF](https://hf-mirror.com/vantagewithai/SCAIL-Preview-GGUF/tree/main)!
+* 2025.12.18: 📣 Thanks to [VantageWithAI](https://hf-mirror.com/vantagewithai), GGUF version is now available at [SCAIL-Preview-GGUF](https://hf-mirror.com/vantagewithai/SCAIL-Preview-GGUF/tree/main)!
 
 
 
@@ -92,7 +97,11 @@ examples/
 ...
 ```
 ### Pose Extraction & Rendering
-We provide our pose extraction and rendering code in another repo [SCAIL-Pose](https://github.com/teal024/SCAIL-Pose), which can be used to extract the pose from the driving video and render them. We recommand using another environment for pose extraction due to dependency issues. Clone that repo to `SCAIL-Pose` folder and follow instructions in it.
+Change dir into `SCAIL-Pose` folder and follow instructions in it.
+```shell
+cd SCAIL-Pose
+# follow instructions in the subdir
+```
 After pose extraction and rendering, the input data should be organized as follows:
 ```
 examples/
