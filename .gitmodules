@@ -1,0 +1,3 @@
+[submodule "scail_pose"]
+	path = scail_pose
+	url = https://github.com/zai-org/SCAIL-Pose.git
