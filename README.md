@@ -18,7 +18,7 @@ This repository contains the official implementation code for **SCAIL (Studio-Gr
 </p>
 
 ## 🔎 Motivation and Results
-SCAIL identifies the key bottlenecks that hinder character animation towards production level: limited generalization towards characters and incoherent motion under complex scenarios (e.g., the long-standing challenge of multi-character interactions, as well as common failures in basic motions like flipping and turning). We revisit the core components of character animation -- how to represent the pose representation and how to inject the pose. Our framework resolves the challenge that pose representations cannot simultaneously prevent identity leakage and preserve rich motion information, and compels the model to perform spatiotemporal reasoning over the entire motion sequence for more natural and coherent movements. Check our methods, results gallery, as well as comparisons against other baselines at our [project page](https://teal024.github.io/SCAIL/).
+SCAIL identifies the key bottlenecks that hinder character animation towards production level: limited generalization towards characters and incoherent motion under complex scenarios (e.g., the long-standing challenge of multi-character interactions, as well as common failures in basic motions like flipping and turning). We revisit the core components of character animation -- how to represent the pose condition and how to inject the pose condition. Our framework resolves the challenge that pose representations cannot simultaneously prevent identity leakage and preserve rich motion information, and compels the model to perform spatiotemporal reasoning over the entire motion sequence for more natural and coherent movements. Check our methods, results gallery, as well as comparisons against other baselines at our [project page](https://teal024.github.io/SCAIL/).
 <p align="center">
   <img src='resources/1.gif' width='66%'>
   <img src='resources/2.gif' width='66%'>
@@ -26,7 +26,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 </p>
 
 ## 🌱 Community Works
-❤️ Huge thanks to friends in the community for testing the work! We were surprised to see that the model can already handle many complex anime characters and even support multi-character anime interactions. All results are shared with their gracious consent.
+❤️ A heartfelt thanks to friends in the community for their creativity! We were surprised to see that the model can handle so many characters and support postures or interactions that we never imagined. All results are shared with their gracious consent.
 
 <table align="center" border="0" cellspacing="0" cellpadding="0">
   <tr>
@@ -34,24 +34,51 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
       <table align="center" border="0" cellspacing="0" cellpadding="0">
         <tr>
           <td align="center" style="padding: 4px;">
-            <img src="resources/community1.gif" width="220">
+            <img src="resources/community1.gif" width="220"><br>
+            <em>Chibi Gotham Battle</em>
           </td>
           <td align="center" style="padding: 4px;">
-            <img src="resources/community2.gif" width="220">
+            <img src="resources/community2.gif" width="250"><br>
+            <em>Homer in Slowmo</em>
           </td>
         </tr>
         <tr>
           <td align="center" colspan="2" style="padding: 4px;">
-            <img src="resources/community3.gif" width="400">
+            <img src="resources/community3.gif" width="400"><br>
+            <em>Street Fighter 6 Motion Mimic</em>
           </td>
         </tr>
       </table>
     </td>
-    <td valign="middle" style="padding: 4px;">
-      <img src="resources/community4.gif" width="150">
+    <td valign="middle" style="padding: 4px;" align="center">
+      <img src="resources/community4.gif" width="150"><br>
+      <em>Anime Art Animation</em>
     </td>
   </tr>
+
+ <tr>
+  <td colspan="2" align="center" style="padding-top: 8px;">
+    <table align="center" border="0" cellspacing="0" cellpadding="0">
+      <tr>
+        <td align="center" style="padding: 4px 20px;">
+          <img src="resources/community6.gif" width="150"><br>
+          <em>Doodle Art Animation</em>
+        </td>
+        <td align="center" style="padding: 4px 20px;">
+          <img src="resources/community5.gif" width="200"><br>
+          <em>Group Dance</em>
+        </td>
+        <td align="center" style="padding: 4px 20px;">
+          <img src="resources/community7.gif" width="200"><br>
+          <em>MMD Animation</em>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+
 </table>
+
 
 
 
@@ -59,9 +86,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 * 2025.12.18: 📣 The [SCAIL-Pose](https://github.com/zai-org/SCAIL-Pose) is now merged into the main repo as a submodule.
 * 2025.12.17: ❤️ Thanks to [VantageWithAI](https://hf-mirror.com/vantagewithai), GGUF version is now available at [SCAIL-Preview-GGUF](https://hf-mirror.com/vantagewithai/SCAIL-Preview-GGUF/tree/main)!
 * 2025.12.16: ❤️ Huge thanks to KJ for the work done on adaptation — SCAIL is now available in [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper)!!! Meanwhile, the pose extraction & rendering has also been partly adapted to ComfyUI in [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose), currently without multi-character tracking.
-* 2025.12.14: 🥳 Thanks to friends in the community for testing the work!
-Despite the fact that only 1.5% of SCAIL’s training samples are anime data, and that we did not intentionally collect any multi-character anime data, we were surprised to see that the model can already handle many complex anime characters and even support multi-character anime interactions.
-The release of SCAIL-Preview is intended to demonstrate the soundness of our proposed pose representation and model architecture, with clear potential for further scaling and enhancement.
+* 2025.12.14: 🥳 Thanks to friends in the community for testing the work! Despite the fact that only 1.5% of SCAIL’s training samples are anime data, and that we did not intentionally collect any multi-character anime data, the model can generalize towards many complex anime characters. The release of SCAIL-Preview is intended to demonstrate the soundness of our proposed pose representation and model architecture, with clear potential for further scaling and enhancement.
 * 2025.12.11: 💥 SCAIL is now officially opensourced on [HuggingFace](https://huggingface.co/zai-org/SCAIL-Preview) and [ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview)!!
 * 2025.12.11: 👀 We’ve added more interesting cases to our gallery on [project page](https://teal024.github.io/SCAIL/)! Check it out! 
 * 2025.12.08: 🔥 We release the inference code of SCAIL on [SAT](https://github.com/THUDM/SwissArmyTransformer).
