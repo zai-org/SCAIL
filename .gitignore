@@ -1,0 +1,39 @@
+.*
+*.py[cod]
+# *.jpg
+*.jpeg
+# *.png
+*.gif
+*.bmp
+*.mp4
+!examples/*.mp4
+*.mov
+*.mkv
+*.log
+*.zip
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.json
+!configs/*.json
+# *.txt
+*.backup
+*.pkl
+*.html
+*.pdf
+*.whl
+cache
+__pycache__/
+storage/
+samples/
+!.gitignore
+!requirements.txt
+.DS_Store
+*DS_Store
+google/
+Wan2.1-T2V-14B/
+Wan2.1-T2V-1.3B/
+Wan2.1-I2V-14B-480P/
+Wan2.1-I2V-14B-720P/
+poetry.lock
