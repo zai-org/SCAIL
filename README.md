@@ -27,13 +27,22 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 
 ## 🌱 Community Works
 Huge thanks to friends in the community for testing the work! We were surprised to see that the model can already handle many complex anime characters and even support multi-character anime interactions. All generated results are borrowed with their consents.
-<div style="display: flex; justify-content: center; gap: 20px; margin-bottom: 20px;">
-  <img src="resources/community1.gif" style="max-width: 28%; height: auto; object-fit: contain;">
-  <img src="resources/community2.gif" style="max-width: 32%; height: auto; object-fit: contain;">
-</div>
-<div align="center">
-  <img src="resources/community3.gif" width="55%">
-</div>
+
+<table align="center">
+  <tr>
+    <td align="center" style="padding: 4px;">
+      <img src="resources/community1.gif" width="180">
+    </td>
+    <td align="center" style="padding: 4px;">
+      <img src="resources/community2.gif" width="220">
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="resources/community3.gif" width="400">
+    </td>
+  </tr>
+</table>
 
 
 
