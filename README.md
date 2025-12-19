@@ -28,61 +28,58 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 ## 🌱 Community Works
 ❤️ A heartfelt thanks to friends in the community for their creativity! We were surprised to see that the model can handle so many characters and support postures or interactions that we never imagined. All results are shared with their gracious consent.
 
-<table align="center" border="0" cellspacing="0" cellpadding="0">
+<table align="center" border="0" cellspacing="0" cellpadding="6">
+  <!-- 第一行 -->
   <tr>
-    <td valign="middle" style="padding-right: 4px;">
-      <table align="center" border="0" cellspacing="0" cellpadding="0">
-        <tr>
-          <td align="center" style="padding: 4px;">
-            <img src="resources/community1.gif" width="220"><br>
-            <em>Chibi Gotham Battle</em>
-          </td>
-          <td align="center" style="padding: 4px;">
-            <img src="resources/community2.gif" width="250"><br>
-            <em>Homer in Slowmo</em>
-          </td>
-        </tr>
-        <tr>
-          <td align="center" colspan="2" style="padding: 4px;">
-            <img src="resources/community3.gif" width="400"><br>
-            <em>Street Fighter 6 Motion Mimic</em>
-          </td>
-        </tr>
-      </table>
+    <td align="center">
+      <img src="resources/community1.gif" width="220"><br>
+      <em>Chibi Gotham Battle</em>
     </td>
-    <td valign="middle" style="padding: 4px;" align="center">
+    <td align="center">
+      <img src="resources/community2.gif" width="250"><br>
+      <em>Homer in Slowmo (w/ Uni3c)</em>
+    </td>
+    <td align="center" rowspan="2">
       <img src="resources/community4.gif" width="150"><br>
       <em>Anime Art Animation</em>
     </td>
   </tr>
 
- <tr>
-  <td colspan="2" align="center" style="padding-top: 8px;">
-    <table align="center" border="0" cellspacing="0" cellpadding="0">
-      <tr>
-        <td align="center" style="padding: 4px 20px;">
-          <img src="resources/community6.gif" width="150"><br>
-          <em>Doodle Art Animation</em>
-        </td>
-        <td align="center" style="padding: 4px 20px;">
-          <img src="resources/community5.gif" width="200"><br>
-          <em>Group Dance</em>
-        </td>
-        <td align="center" style="padding: 4px 20px;">
-          <img src="resources/community7.gif" width="200"><br>
-          <em>MMD Animation</em>
-        </td>
-      </tr>
-    </table>
-  </td>
-</tr>
+  <!-- 第二行 -->
+  <tr>
+    <td align="center" colspan="2">
+      <img src="resources/community3.gif" width="400"><br>
+      <em>Street Fighter 6 Motion Mimic</em>
+    </td>
+  </tr>
 
+  <!-- 第三行 -->
+  <tr>
+    <td align="center">
+      <img src="resources/community6.gif" width="150"><br>
+      <em>Doodle Art Animation</em>
+    </td>
+    <td align="center">
+      <img src="resources/community8.gif" width="150"><br>
+      <em>Dual Dance</em>
+    </td>
+    <td align="center" colspan="2">
+      <img src="resources/community5.gif" width="150"><br>
+      <em>Group Dance</em>
+      <img src="resources/community7.gif" width="200"><br>
+      <em>Creature Animation (w/ ViTPose)</em>
+    </td>
+  </tr>
 </table>
 
 
 
 
+
+
+
 ## 🗞️ Update and News
+* 2025.12.19: 📣 We offer the Wan Official Framework of SCAIL instead of [SAT](https://github.com/THUDM/SwissArmyTransformer) for more convenient inference. Check the [wan branch](https://github.com/zai-org/SCAIL/tree/wan) of SCAIL. We will keep updating the training code of SCAIL on SAT for reproducibility.
 * 2025.12.18: 📣 The [SCAIL-Pose](https://github.com/zai-org/SCAIL-Pose) is now merged into the main repo as a submodule.
 * 2025.12.17: ❤️ Thanks to [VantageWithAI](https://hf-mirror.com/vantagewithai), GGUF version is now available at [SCAIL-Preview-GGUF](https://hf-mirror.com/vantagewithai/SCAIL-Preview-GGUF/tree/main)!
 * 2025.12.16: ❤️ Huge thanks to KJ for the work done on adaptation — SCAIL is now available in [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper)!!! Meanwhile, the pose extraction & rendering has also been partly adapted to ComfyUI in [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose), currently without multi-character tracking.
@@ -181,7 +178,9 @@ examples/
 ```
 
 ### Model Inference
-Run the following command to start the inference:
+For inference in Wan Official Framework, please refer to the [wan branch](https://github.com/zai-org/SCAIL/tree/wan) of SCAIL.
+
+For inference in SAT, run the following command to start the inference:
 ```
 bash scripts/sample_sgl_1Bsc_xc_cli.sh
 ```
