@@ -79,6 +79,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 
 
 ## 🗞️ Update and News
+* 2025.12.19: ❤️ Thanks to [deepbeepmeep](https://github.com/deepbeepmeep) for Low VRAM SCAIL Preview Support in [WanGP](https://github.com/deepbeepmeep/Wan2GP)! WanGP version has the following perks: 3D pose Preprocessing fully integrated, speed optimized, and compatible with any pytorch version.
 * 2025.12.19: 📣 We offer the Wan Official Framework of SCAIL instead of [SAT](https://github.com/THUDM/SwissArmyTransformer) for more convenient inference. Check the [wan branch](https://github.com/zai-org/SCAIL/tree/wan) of SCAIL. We will keep updating the training code of SCAIL on SAT for reproducibility.
 * 2025.12.18: 📣 The [SCAIL-Pose](https://github.com/zai-org/SCAIL-Pose) is now merged into the main repo as a submodule.
 * 2025.12.17: ❤️ Thanks to [VantageWithAI](https://hf-mirror.com/vantagewithai), GGUF version is now available at [SCAIL-Preview-GGUF](https://hf-mirror.com/vantagewithai/SCAIL-Preview-GGUF/tree/main)!
@@ -180,12 +181,17 @@ examples/
 ### Model Inference
 For inference in Wan Official Framework, please refer to the [wan branch](https://github.com/zai-org/SCAIL/tree/wan) of SCAIL.
 
-For inference in SAT, run the following command to start the inference:
+For inference in SAT, run the following command to start the inference with CLI input:
 ```
-bash scripts/sample_sgl_1Bsc_xc_cli.sh
+bash scripts/sample_sgl_14Bsc_xc_cli.sh
 ```
 
 The CLI will ask you to input in format like `<prompt>@@<example_dir>`, e.g. `the girl is dancing@@examples/001`. The `example_dir` should contain rendered.mp4 or rendered_aligned.mp4 after pose extraction and rendering. Results will be save to `samples/`.
+
+We support direct txt input too, change `input_file` in [sample_sgl_14Bsc_xc_txt.yaml](configs/sampling/sample_sgl_14Bsc_xc_txt.yaml) to path of your input file, and fill in the input file with format like `<prompt>@@<example_dir>`, then run the following command:
+```
+bash scripts/sample_sgl_14Bsc_xc_txt.sh
+```
 
 Note that our model is trained with **long detailed prompts**, even though a short or even null prompt can be used, the result may not be as good as the long prompt. We will provide our prompt generation snippets, using Google [Gemini](https://deepmind.google/models/gemini/) to read from the reference image and the driving motion and generate a detailed prompt like `A woman with curly hair is joyfully dancing along a rocky shoreline, wearing a sleek blue two-piece outfit. She performs various dance moves, including twirling, raising her hands, and embracing the lively seaside atmosphere, her tattoos and confident demeanor adding to her dynamic presence.` 
 
