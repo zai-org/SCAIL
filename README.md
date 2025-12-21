@@ -26,7 +26,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 </p>
 
 ## 🌱 Community Works
-❤️ A heartfelt thanks to friends in the community for their creativity! We were surprised to see that the model can handle so many characters and support postures or interactions that we never imagined. All results are shared with their gracious consent.
+❤️ A heartfelt thanks to friends in the community for their creativity! All results below are shared with their gracious consent. We were surprised to see the emergent abilities our model exhibited — understanding the 3D spatial relationships of 2D characters, driving hand-drawn artwork, and even rigging animal skeletons despite having no animal training data at all. 
 
 <table align="center" border="0" cellspacing="0" cellpadding="6">
   <!-- 第一行 -->
