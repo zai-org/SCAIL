@@ -54,9 +54,11 @@ Please refer to the guidance in our [SCAIL-Pose](https://github.com/zai-org/SCAI
 
 
 ### Run SCAIL
-Use the following commands to run the SCAIL pipeline. 
+Use the following commands to run the SCAIL pipeline with our [examples](./examples/). 
 ```sh
-python generate.py --model SCAIL-14B --ckpt_dir /path/to/SCAIL-Preview --scail_path /path/to/SCAIL.safetensors --image examples/SCAIL/ref.jpg --pose examples/SCAIL/rendered.mp4 --prompt "the girl is dancing"
+# --target_w: width of the output video, default: 896
+# --target_h: height of the output video, default: 512
+python generate.py --model SCAIL-14B --ckpt_dir /path/to/SCAIL-Preview --scail_path /path/to/SCAIL.safetensors --image examples/SCAIL/ref.jpg --pose examples/SCAIL/rendered.mp4 --prompt "the girl is dancing" --target_w 896 --target_h 512 
 ```
 > Note: `--pose` should be the path to the **rendered pose video**. 
 
