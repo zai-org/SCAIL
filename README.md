@@ -26,7 +26,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 </p>
 
 ## 🌱 Community Works
-❤️ A heartfelt thanks to friends in the community for their creativity! All results below are shared with their gracious consent. We were surprised to see the emergent abilities our model exhibited — understanding the 3D spatial relationships of 2D characters, driving hand-drawn artwork, and even rigging animal skeletons despite having no animal training data at all. 
+❤️ A heartfelt thanks to friends in the community for their creativity! All results below are shared with their gracious consent. We were surprised to see the emergent abilities our model exhibited — understanding the 3D spatial relationships of 2D characters, driving hand-drawn artwork, and even controlling quadrupeds despite having no animal training data at all. 
 
 <table align="center" border="0" cellspacing="0" cellpadding="6">
   <!-- 第一行 -->
@@ -67,46 +67,37 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
       <img src="resources/community5.gif" width="150"><br>
       <em>Group Dance</em>
       <img src="resources/community7.gif" width="200"><br>
-      <em>Creature Animation (w/ ViTPose)</em>
+      <em>Quadrupeds Animation (w/ ViTPose)</em>
     </td>
   </tr>
 </table>
 
 
-
-
-
-
-
-## 🗞️ Update and News
-* 2025.12.19: ❤️ Thanks to [deepbeepmeep](https://github.com/deepbeepmeep) for Low VRAM SCAIL Preview Support in [WanGP](https://github.com/deepbeepmeep/Wan2GP)! WanGP version has the following perks: 3D pose Preprocessing fully integrated, speed optimized, and compatible with any pytorch version.
-* 2025.12.19: 📣 We offer the Wan Official Framework of SCAIL instead of [SAT](https://github.com/THUDM/SwissArmyTransformer) for more convenient inference. Check the [wan branch](https://github.com/zai-org/SCAIL/tree/wan) of SCAIL. We will keep updating the training code of SCAIL on SAT for reproducibility.
-* 2025.12.18: 📣 The [SCAIL-Pose](https://github.com/zai-org/SCAIL-Pose) is now merged into the main repo as a submodule.
-* 2025.12.17: ❤️ Thanks to [VantageWithAI](https://hf-mirror.com/vantagewithai), GGUF version is now available at [SCAIL-Preview-GGUF](https://hf-mirror.com/vantagewithai/SCAIL-Preview-GGUF/tree/main)!
-* 2025.12.16: ❤️ Huge thanks to KJ for the work done on adaptation — SCAIL is now available in [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper)!!! Meanwhile, the pose extraction & rendering has also been partly adapted to ComfyUI in [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose), currently without multi-character tracking.
-* 2025.12.14: 🥳 Thanks to friends in the community for testing the work! Despite the fact that only 1.5% of SCAIL’s training samples are anime data, and that we did not intentionally collect any multi-character anime data, the model can generalize towards many complex anime characters. The release of SCAIL-Preview is intended to demonstrate the soundness of our proposed pose representation and model architecture, with clear potential for further scaling and enhancement.
-* 2025.12.11: 💥 SCAIL is now officially opensourced on [HuggingFace](https://huggingface.co/zai-org/SCAIL-Preview) and [ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview)!!
-* 2025.12.11: 👀 We’ve added more interesting cases to our gallery on [project page](https://teal024.github.io/SCAIL/)! Check it out! 
+## 🗞️ Updates and Plans
+* 2025.12.19: 📣 We offer the Wan Official Framework of SCAIL instead of [SAT](https://github.com/THUDM/SwissArmyTransformer) for more convenient inference. Check the [wan branch](https://github.com/zai-org/SCAIL/tree/wan) of SCAIL. We will update the training code of SCAIL on SAT for reproducibility.
+* 2025.12.11: 💥 The preview version of SCAIL is now opensourced on [HuggingFace](https://huggingface.co/zai-org/SCAIL-Preview) and [ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview).
 * 2025.12.08: 🔥 We release the inference code of SCAIL on [SAT](https://github.com/THUDM/SwissArmyTransformer).
 
-
-
-
-
-
-## 📋 TODOs
+### TODOs
 - [x] **SCAIL-14B-Preview Model Weights**(512p, 5s) and Inference Config
 - [x] Prompt Optimization Snippets
+- [x] **Implementation on Wan Official Framework**
 - [ ] **SCAIL-Official(1.3B/14B) Model Weights**(Improved Stability and Clarity, Innate Long Video Generation Capability) and Inference Config
+
+## 📰 News
+* 2025.12.19: [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose) now supports saving NLF mesh as 3D glb animation and 3D previewing of the SCAIL-Pose skeleton.
+* 2025.12.19: Thanks to [deepbeepmeep](https://github.com/deepbeepmeep) for Low VRAM SCAIL Preview Support in [WanGP](https://github.com/deepbeepmeep/Wan2GP)! WanGP version has the following perks: 3D pose Preprocessing fully integrated, speed optimized, and compatible with any pytorch version.
+* 2025.12.17: Thanks to [VantageWithAI](https://hf-mirror.com/vantagewithai), GGUF version is now available at [SCAIL-Preview-GGUF](https://hf-mirror.com/vantagewithai/SCAIL-Preview-GGUF/tree/main)!
+* 2025.12.16: ❤️ Huge thanks to KJ for the work done on adaptation — SCAIL is now available in [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper)!!! Meanwhile, the pose extraction & rendering has also been partly adapted to ComfyUI in [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose), currently without multi-character tracking.
+* 2025.12.14: 🥳 Thanks to friends in the community for testing the work! Despite the fact that only 1.5% of SCAIL’s training samples are anime data, and that we did not intentionally collect any multi-character anime data, the model can generalize towards many complex anime characters. The release of SCAIL-Preview is intended to demonstrate the soundness of our proposed pose representation and model architecture, with clear potential for further scaling and enhancement.
+
 
 ## 🚀 Getting Started
 ### Checkpoints Download
 
-<!-- **Note:** Due to double-blind review requirements, we do not provide the checkpoint download link here.  -->
-
 | ckpts       | Download Link                                                                                                                                           |    Notes                      |
 |--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| SCAIL-Preview(14B) | [🤗 Hugging Face](https://huggingface.co/zai-org/SCAIL-Preview)<br> [🤖 ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview)     | Supports  512P
+| SCAIL-Preview(14B) | [🤗 Hugging Face](https://huggingface.co/zai-org/SCAIL-Preview)<br> [🤖 ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview)     | Trained with resolutions under 512p.<br> H and W should be both divisible by 32<br> (e.g. 704*1280) if using other resolutions. |
 
 Use the following commands to download the model weights
 (We have integrated both Wan VAE and T5 modules into this checkpoint for convenience).

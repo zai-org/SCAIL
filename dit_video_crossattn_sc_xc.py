@@ -1199,9 +1199,6 @@ class AdaLNMixin(BaseMixin):
                 ref_len = kw_args["ref_length"]
                 total_video_len = seq_len + ref_len
                 if total_video_len < clip_feature_context_layer.shape[1]:
-                    print(f"debug: total_video_len={total_video_len}")
-                    print(f"debug: clip_feature_context_layer.shape={clip_feature_context_layer.shape}")
-                    print(clip_feature_context_layer[:, total_video_len:, :].max())
                     clip_feature_context_layer[:, total_video_len:, :] = 0
             context_layer = context_layer + clip_feature_context_layer
 

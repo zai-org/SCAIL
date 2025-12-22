@@ -26,7 +26,7 @@ model:
       time_embed_dim: 5120
       share_adaln: True
       elementwise_affine: False
-      num_frames: 81
+      num_frames: 81    # change the parameter to larger number if you want to infer longer videos; however, we recommand inference multiple 81-frame-videos for quality and efficiency.
       time_compressed_rate: 4
       latent_width: 300
       latent_height: 300
