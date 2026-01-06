@@ -37,7 +37,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
     </td>
     <td align="center">
       <img src="resources/community2.gif" width="250"><br>
-      <em>Homer in Slowmo (w/ Uni3c)</em>
+      <em>Homer Bullet Time (w/ Uni3c)</em>
     </td>
     <td align="center" rowspan="2">
       <img src="resources/community4.gif" width="150"><br>
@@ -74,6 +74,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 
 
 ## 🗞️ Updates and Plans
+* 2026.3.1: 🔥 SCAIL is now native in [ComfyUI](https://github.com/Comfy-Org/ComfyUI/pull/12614).
 * 2025.12.19: 📣 We offer the Wan Official Framework of SCAIL instead of [SAT](https://github.com/THUDM/SwissArmyTransformer) for more convenient inference. Check the [wan branch](https://github.com/zai-org/SCAIL/tree/wan) of SCAIL. We will update the training code of SCAIL on SAT for reproducibility.
 * 2025.12.11: 💥 The preview version of SCAIL is now opensourced on [HuggingFace](https://huggingface.co/zai-org/SCAIL-Preview) and [ModelScope](https://modelscope.cn/models/ZhipuAI/SCAIL-Preview).
 * 2025.12.08: 🔥 We release the inference code of SCAIL on [SAT](https://github.com/THUDM/SwissArmyTransformer).
@@ -85,6 +86,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 - [ ] **SCAIL-Official(1.3B/14B) Model Weights**(Improved Stability and Clarity, Innate Long Video Generation Capability) and Inference Config
 
 ## 📰 News
+* 2026.3.1: Thanks to [toyxyz](https://github.com/toyxyz), a Blender 3D rig can be used with scail-pose now, allowing for much more dynamic and diverse shapes and poses, see [#30](https://github.com/zai-org/SCAIL/issues/30).
 * 2025.12.19: [ComfyUI-SCAIL-Pose](https://github.com/kijai/ComfyUI-SCAIL-Pose) now supports saving NLF mesh as 3D glb animation and 3D previewing of the SCAIL-Pose skeleton.
 * 2025.12.19: Thanks to [deepbeepmeep](https://github.com/deepbeepmeep) for Low VRAM SCAIL Preview Support in [WanGP](https://github.com/deepbeepmeep/Wan2GP)! WanGP version has the following perks: 3D pose Preprocessing fully integrated, speed optimized, and compatible with any pytorch version.
 * 2025.12.17: Thanks to [VantageWithAI](https://hf-mirror.com/vantagewithai), GGUF version is now available at [SCAIL-Preview-GGUF](https://hf-mirror.com/vantagewithai/SCAIL-Preview-GGUF/tree/main)!

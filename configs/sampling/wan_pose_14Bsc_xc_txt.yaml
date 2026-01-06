@@ -5,13 +5,13 @@ args:
   load: SCAIL-Preview/model
   batch_size: 1
   input_type: txt
-  input_file: <your_path_to_input_file>
+  input_file: examples/input.txt
   sampling_image_size: [512, 896]
   vae_compress_size: [4, 8, 8] # t h w
   bf16: True
   sampling_fps: 16
   force_inference: True
-  sequence_parallel_size: 1
+  sequence_parallel_size: 1   # change to 2 or 4 to enable multi-gpus inference (using sequence parallelism)
   image2video: True
   use_i2v_clip: True
   use_pose: True
