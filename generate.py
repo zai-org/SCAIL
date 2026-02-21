@@ -149,6 +149,18 @@ def _parse_args():
         type=float,
         default=5.0,
         help="Classifier free guidance scale.")
+    parser.add_argument(
+        "--lora_path",
+        type=str,
+        default=None,
+        help="Path to safetensors of LoRA."
+    )
+    parser.add_argument(
+        "--lora_alpha",
+        type=float,
+        default=1.0,
+        help="Strength of LoRA. Default: 1.0"
+    )
 
     args = parser.parse_args()
 
@@ -253,6 +265,8 @@ def generate(args):
         dit_fsdp=args.dit_fsdp,
         use_usp=(args.ulysses_size > 1 or args.ring_size > 1),
         t5_cpu=args.t5_cpu,
+        lora_path=args.lora_path,
+        lora_alpha=args.lora_alpha,        
     )
 
     logging.info("Generating video ...")

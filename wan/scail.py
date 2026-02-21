@@ -30,6 +30,7 @@ from .utils.fm_solvers import (
     retrieve_timesteps,
 )
 from .utils.fm_solvers_unipc import FlowUniPCMultistepScheduler
+from .utils.lora import fuse_lora_with_diff_b
 
 class SCAILPipeline:
 
@@ -46,6 +47,8 @@ class SCAILPipeline:
         use_usp=False,
         t5_cpu=False,
         init_on_cpu=True,
+        lora_path=None,
+        lora_alpha=None,
     ):
         r"""
         Initializes the image-to-video generation model components.
@@ -75,6 +78,8 @@ class SCAILPipeline:
         self.rank = rank
         self.use_usp = use_usp
         self.t5_cpu = t5_cpu
+        self.lora_path = lora_path
+        self.lora_alpha = lora_alpha
 
         self.num_train_timesteps = config.num_train_timesteps
         self.param_dtype = config.param_dtype
@@ -106,6 +111,10 @@ class SCAILPipeline:
         self.model = SCAILModel.from_config(scail_config_path)
         state_dict = load_file(scail_safetensors_path)
         self.model.load_state_dict(state_dict)
+        if self.lora_path is not None:
+            if self.lora_alpha is None:
+                self.lora_alpha = 1.0
+            self.fuse_lora(self.lora_path, self.lora_alpha)
         self.model.eval().requires_grad_(False)
 
         if t5_fsdp or dit_fsdp or use_usp:
@@ -135,6 +144,10 @@ class SCAILPipeline:
                 self.model.to(self.device)
 
         self.sample_neg_prompt = config.sample_neg_prompt
+
+    def fuse_lora(self, lora_path, alpha=1.0):
+        lora_state_dict = load_file(lora_path)
+        fuse_lora_with_diff_b(self.model, lora_state_dict, alpha=alpha)
 
     def generate(self,
                  input_prompt,
@@ -305,13 +318,16 @@ class SCAILPipeline:
                         torch.device('cpu') if offload_model else self.device)
                 if offload_model:
                     torch.cuda.empty_cache()
-                noise_pred_uncond = self.model(
-                    latent_model_input, t=timestep, **arg_null)[0].to(
-                        torch.device('cpu') if offload_model else self.device)
-                if offload_model:
-                    torch.cuda.empty_cache()
-                noise_pred = noise_pred_uncond + guide_scale * (
-                    noise_pred_cond - noise_pred_uncond)
+                if guide_scale <= 1.0:
+                    noise_pred = noise_pred_cond
+                else:
+                    noise_pred_uncond = self.model(
+                        latent_model_input, t=timestep, **arg_null)[0].to(
+                            torch.device('cpu') if offload_model else self.device)
+                    if offload_model:
+                        torch.cuda.empty_cache()
+                    noise_pred = noise_pred_uncond + guide_scale * (
+                        noise_pred_cond - noise_pred_uncond)
 
                 latent = latent.to(
                     torch.device('cpu') if offload_model else self.device)
