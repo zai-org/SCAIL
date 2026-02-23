@@ -1,3 +1,4 @@
+import os
 import decord
 import numpy as np
 from decord import VideoReader
@@ -59,3 +60,42 @@ def resize_for_rectangle_crop(arr, image_size, reshape_mode="random"):
         arr, top=top, left=left, height=image_size[0], width=image_size[1]
     )
     return arr
+
+def find_file_with_patterns(directory, patterns):
+    """Find file matching any of the given patterns in the directory"""
+    for pattern in patterns:
+        file_path = os.path.join(directory, pattern)
+        if os.path.exists(file_path):
+            return file_path
+    return None
+
+def get_tasks_from_txt(path):
+    tasks = []
+    idx = 0
+    with open(path, "r") as f:
+        for line in f:
+            text = line.strip()
+            text_parts = text.split('@@')
+            text = text_parts[0]
+            input_dir = text_parts[1]
+            
+            # Find reference image with multiple possible names
+            ref_image_patterns = ['ref.jpg', 'ref.png', 'ref_image.jpg', 'ref_image.png']
+            image_path = find_file_with_patterns(input_dir, ref_image_patterns)
+            if image_path is None:
+                raise FileNotFoundError(f"Reference image not found in {input_dir}. Tried: {ref_image_patterns}")
+            
+            # Find pose video with multiple possible names
+            pose_patterns = ['rendered.mp4', 'smpl_aligned.mp4', 'smpl_render.mp4']
+            pose_path = find_file_with_patterns(input_dir, pose_patterns)
+            if pose_path is None:
+                raise FileNotFoundError(f"Pose video not found in {input_dir}. Tried: {pose_patterns}")
+            
+            if text == "None":
+                text = ""
+            else:
+                text = text
+
+            tasks.append((text, image_path, pose_path, idx))
+            idx += 1
+    return tasks

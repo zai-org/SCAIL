@@ -146,6 +146,7 @@ class SCAILPipeline:
         self.sample_neg_prompt = config.sample_neg_prompt
 
     def fuse_lora(self, lora_path, alpha=1.0):
+        logging.info(f"Fusing LoRA from {lora_path}, strength = {alpha}.")
         lora_state_dict = load_file(lora_path)
         fuse_lora_with_diff_b(self.model, lora_state_dict, alpha=alpha)
 

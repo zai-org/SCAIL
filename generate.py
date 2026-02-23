@@ -17,13 +17,14 @@ from PIL import Image
 import wan
 from wan.configs import SCAIL_CONFIGS, SCAIL_CONFIG_PATHS
 from wan.utils.utils import cache_video, str2bool
-from wan.utils.scail_utils import load_image_to_tensor_chw_normalized, load_video_for_pose_sample, resize_for_rectangle_crop
+from wan.utils.scail_utils import load_image_to_tensor_chw_normalized, load_video_for_pose_sample, resize_for_rectangle_crop, get_tasks_from_txt
 
 
 def _validate_args(args):
     assert args.ckpt_dir is not None, "Please specify the checkpoint directory."
-    assert args.pose is not None, "Please specify the pose video."
-    assert args.image is not None, "Please specify the reference image."
+    if args.txt is None:
+        assert args.pose is not None, "Please specify the pose video."
+        assert args.image is not None, "Please specify the reference image."
     assert str(args.model).upper() in SCAIL_CONFIGS
 
     args.model = str(args.model).upper()
@@ -84,6 +85,11 @@ def _parse_args():
         default=False,
         help="Whether to use FSDP for DiT.")
     parser.add_argument(
+        "--save_dir",
+        type=str,
+        default="samples",
+        help="The directory to save the generated videos when --txt is not None.")
+    parser.add_argument(
         "--save_file",
         type=str,
         default=None,
@@ -98,6 +104,11 @@ def _parse_args():
         type=int,
         default=-1,
         help="The seed to use for generating the video.")
+    parser.add_argument(
+        "--txt",
+        type=str,
+        default=None,
+        help="Path to txt file. Default: None")
     parser.add_argument(
         "--image",
         type=str,
@@ -180,6 +191,63 @@ def _init_logging(rank):
     else:
         logging.basicConfig(level=logging.ERROR)
 
+def generate_video(pipeline: wan.SCAILPipeline, prompt: str, image_path: str, pose_path: str, args, device, rank, cfg, input_idx):
+    logging.info(f"Input prompt: {prompt}")
+    logging.info(f"Input image: {image_path}")
+    img = Image.open(image_path).convert("RGB")
+    target_h = args.target_h
+    target_w = args.target_w
+
+    img_uncropped = load_image_to_tensor_chw_normalized(img).to(device)  # 1 c h w, -1 to 1
+    _, _, h, w = img_uncropped.shape
+    if target_h is None or target_w is None:
+        target_h, target_w = h, w
+    if (h < w and target_h > target_w) or (h > w and target_h < target_w):
+        target_h, target_w = target_w, target_h
+
+    logging.info(f"Input pose video: {pose_path}")
+    pose_video = load_video_for_pose_sample(pose_path) # t h w c
+    pose_video = pose_video.permute(0, 3, 1, 2)  # t c h w
+    pose_video = resize_for_rectangle_crop(pose_video, (target_h, target_w), reshape_mode="center")
+    pose_video = (pose_video - 127.5) / 127.5  # -1 1
+
+    img = resize_for_rectangle_crop(img_uncropped, (target_h, target_w), reshape_mode="center")
+    img = img.squeeze(0)  # c h w, -1, 1
+
+    logging.info("Generating video ...")
+    video = pipeline.generate(
+        prompt,
+        img,
+        pose_video=pose_video,
+        shift=args.sample_shift,
+        sample_solver=args.sample_solver,
+        sampling_steps=args.sample_steps,
+        guide_scale=args.sample_guide_scale,
+        seed=args.base_seed,
+        offload_model=args.offload_model,
+    )
+
+    if rank == 0:
+        if args.save_file is None:
+            formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            formatted_prompt = args.prompt.replace(" ", "_").replace("/",
+                                                                     "_")[:50]
+            suffix = '.mp4'
+            args.save_file = f"SCAIL_{args.target_w}{'x' if sys.platform=='win32' else '*'}{args.target_h}_{args.ring_size}_{formatted_prompt}_{formatted_time}" + suffix
+        save_file = args.save_file
+        if input_idx is not None:
+            save_dir = os.path.join(args.save_dir, f"{input_idx:07}")
+            os.makedirs(save_dir, exist_ok=True)
+            save_file = os.path.join(save_dir, args.save_file)
+
+        logging.info(f"Saving generated video to {save_file}")
+        cache_video(
+            tensor=video[None],
+            save_file=save_file,
+            fps=cfg.sample_fps,
+            nrow=1,
+            normalize=True,
+            value_range=(-1, 1))
 
 def generate(args):
     rank = int(os.getenv("RANK", 0))
@@ -235,23 +303,13 @@ def generate(args):
 
     if args.prompt is None:
         args.prompt = ""
-    logging.info(f"Input prompt: {args.prompt}")
-    logging.info(f"Input image: {args.image}")
 
-    img = Image.open(args.image).convert("RGB")
-
-    target_h = args.target_h
-    target_w = args.target_w
-
-    logging.info(f"Input pose video: {args.pose}")
-    pose_video = load_video_for_pose_sample(args.pose) # t h w c
-    pose_video = pose_video.permute(0, 3, 1, 2)  # t c h w
-    pose_video = resize_for_rectangle_crop(pose_video, (target_h, target_w), reshape_mode="center")
-    pose_video = (pose_video - 127.5) / 127.5  # -1 1
-
-    img_uncropped = load_image_to_tensor_chw_normalized(img).to(device)  # 1 c h w, -1 to 1
-    img = resize_for_rectangle_crop(img_uncropped, (target_h, target_w), reshape_mode="center")
-    img = img.squeeze(0)  # c h w, -1, 1
+    if args.txt is not None:
+        tasks = get_tasks_from_txt(args.txt)
+        logging.info(f"Total number of generation tasks: {len(tasks)}.")
+        tasks = tasks[rank::world_size]
+    else:
+        tasks = [(args.prompt, args.image, args.pose, None)]
     
     logging.info("Creating SCAIL pipeline.")
     scail_pipeline = wan.SCAILPipeline(
@@ -269,37 +327,11 @@ def generate(args):
         lora_alpha=args.lora_alpha,        
     )
 
-    logging.info("Generating video ...")
-    video = scail_pipeline.generate(
-        args.prompt,
-        img,
-        pose_video=pose_video,
-        shift=args.sample_shift,
-        sample_solver=args.sample_solver,
-        sampling_steps=args.sample_steps,
-        guide_scale=args.sample_guide_scale,
-        seed=args.base_seed,
-        offload_model=args.offload_model,
-    )
-
-    if rank == 0:
-        if args.save_file is None:
-            formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-            formatted_prompt = args.prompt.replace(" ", "_").replace("/",
-                                                                     "_")[:50]
-            suffix = '.mp4'
-            args.save_file = f"SCAIL_{args.target_w}{'x' if sys.platform=='win32' else '*'}{args.target_h}_{args.ring_size}_{formatted_prompt}_{formatted_time}" + suffix
-
-        logging.info(f"Saving generated video to {args.save_file}")
-        cache_video(
-            tensor=video[None],
-            save_file=args.save_file,
-            fps=cfg.sample_fps,
-            nrow=1,
-            normalize=True,
-            value_range=(-1, 1))
+    for task in tasks:
+        prompt, image_path, pose_path, input_idx = task
+        generate_video(scail_pipeline, prompt, image_path, pose_path, args, device, rank, cfg, input_idx)
+        
     logging.info("Finished.")
-
 
 if __name__ == "__main__":
     args = _parse_args()
