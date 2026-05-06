@@ -10,7 +10,7 @@
 
 
 
-This repository contains the official implementation code for **SCAIL (Studio-Grade Character Animation via In-Context Learning)**, a framework that enables high-fidelity character animation under diverse and challenging conditions, including large motion variations, stylized characters, and multi-character interactions.
+This repository contains the official implementation code of our paper accepted by *CVPR 2026 Findings Track*: **SCAIL: Towards Studio-Grade Character Animation via In-Context Learning of 3D-Consistent Pose Representations**. The code is for the inference of SCAIL-Preview Model, a 14B DiT that enables challenging character animation by **In-Context Learning** of **3D-Consistent Pose Representation**.
 
 
 <p align="center">
@@ -18,7 +18,21 @@ This repository contains the official implementation code for **SCAIL (Studio-Gr
 </p>
 
 ## 🔎 Motivation and Results
-SCAIL identifies the key bottlenecks that hinder character animation towards production level: limited generalization towards characters and incoherent motion under complex scenarios (e.g., the long-standing challenge of multi-character interactions, as well as common failures in basic motions like flipping and turning). We revisit the core components of character animation -- how to represent the pose condition and how to inject the pose condition. Our framework resolves the challenge that pose representations cannot simultaneously prevent identity leakage and preserve rich motion information, and compels the model to perform spatiotemporal reasoning over the entire motion sequence for more natural and coherent movements. Check our methods, results gallery, as well as comparisons against other baselines at our [project page](https://teal024.github.io/SCAIL/).
+SCAIL identifies the key bottlenecks that hinder character animation towards production level: limited generalization towards characters and incoherent motion under complex scenarios (e.g. common failures in basic motions like flipping and turning). We revisit the core components of character animation -- how to represent the pose condition and how to inject the pose condition. 
+
+The first contribution of this paper is **3D-Consistent Pose Representation**, an identity agnostic representation that can both be aware of depth and preserve rich motion information.
+
+<p align="center">
+  <img src='resources/pose_comp.png' alt='Teaser' width='60%'>
+</p>
+
+The second contribution and the core of this paper lies in **how we inject the pose condition**. Common injection methods (e.g. channel concat, pose-guider, residual layers) adds feature instead of showing the full context, which yield decent results under the setting of *controllable generation*, but the performance is limited by the pretrained backbone under wild scenarios. Taking channel concat injection under a 1.3B model as an example, it fail to maintain correct body rotation due to limited model capability in complex human motion. Instead, we show the model **full context**, not only *telling what to follow*, but also *teaching how to do*. As shown below, revealing the the full turning context with the **3D-Consistent Pose Representation** help the less capable 1.3B model learn how to generate plausible turning motion.
+
+<p align="center">
+  <img src='resources/explore.png' alt='Teaser' width='50%'>
+</p>
+
+Check detailed methods, results gallery, as well as comparisons against other baselines at our [project page](https://teal024.github.io/SCAIL/).
 <p align="center">
   <img src='resources/1.gif' width='66%'>
   <img src='resources/2.gif' width='66%'>
@@ -26,7 +40,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 </p>
 
 ## 🌱 Community Works
-❤️ A heartfelt thanks to friends in the community for their creativity! All results below are shared with their gracious consent. We were surprised to see the emergent abilities our model exhibited — understanding the 3D spatial relationships of 2D characters, driving hand-drawn artwork, and even controlling quadrupeds despite having no animal training data at all. 
+❤️ A heartfelt thanks to friends in the community for their creativity! All results below are shared with their gracious consent. We were surprised to see the emergent abilities our model exhibited — understanding the 3D spatial relationships of 2D characters, driving hand-drawn artwork, and even controlling quadrupeds despite having no animal training data at all. We believe such results work as a compelling demonstration of how **In-Context Learning** can push the upper bound of the model's capabilities.
 
 <table align="center" border="0" cellspacing="0" cellpadding="6">
   <!-- 第一行 -->
@@ -83,7 +97,7 @@ SCAIL identifies the key bottlenecks that hinder character animation towards pro
 - [x] **SCAIL-14B-Preview Model Weights**(512p, 5s) and Inference Config
 - [x] Prompt Optimization Snippets
 - [x] **Implementation on Wan Official Framework**
-- [ ] **SCAIL-Official(1.3B/14B) Model Weights**(Improved Stability and Clarity, Innate Long Video Generation Capability) and Inference Config
+- [ ] **SCAIL-2 Model Weights**(Improved Stability and Clarity, Innate Long Video Generation Capability)
 
 ## 📰 News
 * 2026.3.1: Thanks to [toyxyz](https://github.com/toyxyz), a Blender 3D rig can be used with scail-pose now, allowing for much more dynamic and diverse shapes and poses, see [#30](https://github.com/zai-org/SCAIL/issues/30).
